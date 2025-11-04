@@ -25,8 +25,8 @@ import {
 	type MessageComponentInteraction,
 } from "../utils/MessageComponentInteraction.js";
 
-/** File extensions that are treated as command modules when auto-loading. */
-const SUPPORTED_COMMAND_EXTENSIONS = new Set([
+/** File extensions that are treated as loadable modules when auto-loading. */
+const SUPPORTED_MODULE_EXTENSIONS = new Set([
 	".js",
 	".mjs",
 	".cjs",
@@ -40,6 +40,7 @@ export type MiniInteractionOptions = {
 	applicationId: string;
 	publicKey: string;
 	commandsDirectory?: string | false;
+	componentsDirectory?: string | false;
 	fetchImplementation?: typeof fetch;
 	verifyKeyImplementation?: VerifyKeyFunction;
 };
@@ -109,6 +110,7 @@ export class MiniInteraction {
 	private readonly fetchImpl: typeof fetch;
 	private readonly verifyKeyImpl: VerifyKeyFunction;
 	private readonly commandsDirectory: string | null;
+	private readonly componentsDirectory: string | null;
 	private readonly commands = new Map<string, MiniInteractionCommand>();
 	private readonly componentHandlers = new Map<
 		string,
@@ -116,6 +118,8 @@ export class MiniInteraction {
 	>();
 	private commandsLoaded = false;
 	private loadCommandsPromise: Promise<void> | null = null;
+	private componentsLoaded = false;
+	private loadComponentsPromise: Promise<void> | null = null;
 
 	/**
 	 * Creates a new MiniInteraction client with optional command auto-loading and custom runtime hooks.
@@ -124,6 +128,7 @@ export class MiniInteraction {
 		applicationId,
 		publicKey,
 		commandsDirectory,
+		componentsDirectory,
 		fetchImplementation,
 		verifyKeyImplementation,
 	}: MiniInteractionOptions) {
@@ -151,6 +156,10 @@ export class MiniInteraction {
 			commandsDirectory === false
 				? null
 				: this.resolveCommandsDirectory(commandsDirectory);
+		this.componentsDirectory =
+			componentsDirectory === false
+				? null
+				: this.resolveComponentsDirectory(componentsDirectory);
 	}
 
 	/**
@@ -228,6 +237,58 @@ export class MiniInteraction {
 	}
 
 	/**
+	 * Recursively loads components from the configured components directory.
+	 *
+	 * @param directory - Optional directory override for component discovery.
+	 */
+	async loadComponentsFromDirectory(directory?: string): Promise<this> {
+		const targetDirectory =
+			directory !== undefined
+				? this.resolveComponentsDirectory(directory)
+				: this.componentsDirectory;
+
+		if (!targetDirectory) {
+			throw new Error(
+				"[MiniInteraction] Components directory support disabled. Provide a directory path.",
+			);
+		}
+
+		const exists = await this.pathExists(targetDirectory);
+		if (!exists) {
+			this.componentsLoaded = true;
+			console.warn(
+				`[MiniInteraction] Components directory "${targetDirectory}" does not exist. Skipping component auto-load.`,
+			);
+			return this;
+		}
+
+		const files = await this.collectModuleFiles(targetDirectory);
+
+		if (files.length === 0) {
+			this.componentsLoaded = true;
+			console.warn(
+				`[MiniInteraction] No component files found under "${targetDirectory}".`,
+			);
+			return this;
+		}
+
+		for (const file of files) {
+			const components = await this.importComponentModule(file);
+			if (components.length === 0) {
+				continue;
+			}
+
+			for (const component of components) {
+				this.useComponent(component);
+			}
+		}
+
+		this.componentsLoaded = true;
+
+		return this;
+	}
+
+	/**
 	 * Recursively loads commands from the configured commands directory.
 	 *
 	 * @param directory - Optional directory override for command discovery.
@@ -253,7 +314,7 @@ export class MiniInteraction {
 			return this;
 		}
 
-		const files = await this.collectCommandFiles(targetDirectory);
+		const files = await this.collectModuleFiles(targetDirectory);
 
 		if (files.length === 0) {
 			this.commandsLoaded = true;
@@ -595,7 +656,7 @@ export class MiniInteraction {
 	/**
 	 * Recursively collects all command module file paths from the target directory.
 	 */
-	private async collectCommandFiles(directory: string): Promise<string[]> {
+	private async collectModuleFiles(directory: string): Promise<string[]> {
 		const entries = await readdir(directory, { withFileTypes: true });
 		const files: string[] = [];
 
@@ -607,12 +668,12 @@ export class MiniInteraction {
 			const fullPath = path.join(directory, entry.name);
 
 			if (entry.isDirectory()) {
-				const nestedFiles = await this.collectCommandFiles(fullPath);
+				const nestedFiles = await this.collectModuleFiles(fullPath);
 				files.push(...nestedFiles);
 				continue;
 			}
 
-			if (entry.isFile() && this.isSupportedCommandFile(fullPath)) {
+			if (entry.isFile() && this.isSupportedModuleFile(fullPath)) {
 				files.push(fullPath);
 			}
 		}
@@ -623,8 +684,8 @@ export class MiniInteraction {
 	/**
 	 * Determines whether the provided file path matches a supported command file extension.
 	 */
-	private isSupportedCommandFile(filePath: string): boolean {
-		return SUPPORTED_COMMAND_EXTENSIONS.has(
+	private isSupportedModuleFile(filePath: string): boolean {
+		return SUPPORTED_MODULE_EXTENSIONS.has(
 			path.extname(filePath).toLowerCase(),
 		);
 	}
@@ -678,6 +739,68 @@ export class MiniInteraction {
 	}
 
 	/**
+	 * Dynamically imports and validates a component module from disk.
+	 */
+	private async importComponentModule(
+		absolutePath: string,
+	): Promise<MiniInteractionComponent[]> {
+		try {
+			const moduleUrl = pathToFileURL(absolutePath).href;
+			const imported = await import(moduleUrl);
+			const candidate =
+				imported.default ??
+				imported.component ??
+				imported.components ??
+				imported.componentDefinition ??
+				imported;
+
+			const candidates = Array.isArray(candidate)
+				? candidate
+				: [candidate];
+
+			const components: MiniInteractionComponent[] = [];
+
+			for (const item of candidates) {
+				if (!item || typeof item !== "object") {
+					continue;
+				}
+
+				const { customId, handler } = item as MiniInteractionComponent;
+
+				if (typeof customId !== "string") {
+					console.warn(
+						`[MiniInteraction] Component module "${absolutePath}" is missing "customId". Skipping.`,
+					);
+					continue;
+				}
+
+				if (typeof handler !== "function") {
+					console.warn(
+						`[MiniInteraction] Component module "${absolutePath}" is missing a "handler" function. Skipping.`,
+					);
+					continue;
+				}
+
+				components.push({ customId, handler });
+			}
+
+			if (components.length === 0) {
+				console.warn(
+					`[MiniInteraction] Component module "${absolutePath}" did not export any valid components. Skipping.`,
+				);
+			}
+
+			return components;
+		} catch (error) {
+			console.error(
+				`[MiniInteraction] Failed to load component module "${absolutePath}":`,
+				error,
+			);
+			return [];
+		}
+	}
+
+	/**
 	 * Normalises the request body into a UTF-8 string for signature validation and parsing.
 	 */
 	private normalizeBody(body: string | Uint8Array): string {
@@ -686,6 +809,25 @@ export class MiniInteraction {
 		}
 
 		return Buffer.from(body).toString("utf8");
+	}
+
+	/**
+	 * Ensures components have been loaded from disk once before being accessed.
+	 */
+	private async ensureComponentsLoaded(): Promise<void> {
+		if (this.componentsLoaded || this.componentsDirectory === null) {
+			return;
+		}
+
+		if (!this.loadComponentsPromise) {
+			this.loadComponentsPromise = this.loadComponentsFromDirectory().then(
+				() => {
+					this.loadComponentsPromise = null;
+				},
+			);
+		}
+
+		await this.loadComponentsPromise;
 	}
 
 	/**
@@ -817,6 +959,8 @@ export class MiniInteraction {
 				},
 			};
 		}
+
+		await this.ensureComponentsLoaded();
 
 		const handler = this.componentHandlers.get(customId);
 		if (!handler) {
