@@ -3,16 +3,16 @@ import type { APIActionRowComponent } from "discord-api-types/v10";
 
 import { resolveJSONEncodable } from "./shared.js";
 import type { JSONEncodable } from "./shared.js";
-import type { APIComponentInActionRow } from "../types/ComponentTypes.js";
+import type { MiniComponentActionRow } from "../types/ComponentTypes.js";
 
 /** Values accepted when composing component action rows. */
-export type ActionRowComponentLike<T extends APIComponentInActionRow> =
+export type ActionRowComponentLike<T extends MiniComponentActionRow> =
 	| JSONEncodable<T>
 	| T;
 
 /** Builder for Discord action row components. */
 export class ActionRowBuilder<
-	T extends APIComponentInActionRow = APIComponentInActionRow,
+	T extends MiniComponentActionRow = MiniComponentActionRow,
 > implements JSONEncodable<APIActionRowComponent<T>>
 {
 	private components: ActionRowComponentLike<T>[];
