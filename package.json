@@ -1,6 +1,6 @@
 {
-	"name": "mini-interaction",
-	"version": "0.0.0",
+	"name": "@minesa-org/mini-interaction",
+	"version": "0.0.1",
 	"description": "Mini interaction, connecting your app with Discord via HTTP-interaction (Vercel support).",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
