@@ -1,59 +1,77 @@
 import type {
-        APIInteractionResponseCallbackData,
-        APIMessageComponent,
-        MessageFlags,
+	APIInteractionResponseCallbackData,
+	APIMessageComponent,
+	MessageFlags,
 } from "discord-api-types/v10";
-import { ComponentType, MessageFlags as RawMessageFlags } from "discord-api-types/v10";
+import {
+	ComponentType,
+	MessageFlags as RawMessageFlags,
+} from "discord-api-types/v10";
 
 import type {
-        InteractionFollowUpFlags,
-        InteractionReplyFlags,
+	InteractionFollowUpFlags,
+	InteractionReplyFlags,
 } from "../types/InteractionFlags.js";
 
 const COMPONENTS_V2_TYPES = new Set<number>([
-        ComponentType.Container,
-        ComponentType.Section,
-        ComponentType.TextDisplay,
-        ComponentType.MediaGallery,
-        ComponentType.File,
-        ComponentType.Separator,
-        ComponentType.Thumbnail,
+	ComponentType.Container,
+	ComponentType.Section,
+	ComponentType.TextDisplay,
+	ComponentType.MediaGallery,
+	ComponentType.File,
+	ComponentType.Separator,
+	ComponentType.Thumbnail,
 ]);
 
 /** Union of helper flag enums and raw Discord message flags. */
 export type MessageFlagLike =
-        | MessageFlags
-        | InteractionReplyFlags
-        | InteractionFollowUpFlags;
+	| MessageFlags
+	| InteractionReplyFlags
+	| InteractionFollowUpFlags;
 
 /** Message payload accepted by helper reply/edit functions. */
 export type InteractionMessageData = Omit<
-        APIInteractionResponseCallbackData,
-        "flags"
+	APIInteractionResponseCallbackData,
+	"flags"
 > & {
-        flags?: MessageFlagLike;
+	flags?: MessageFlagLike | MessageFlagLike[];
 };
 
 /** Deferred response payload recognised by helper methods. */
 export type DeferredResponseData = {
-        flags: MessageFlagLike;
+	flags: MessageFlagLike | MessageFlagLike[];
 };
 
 /** Options accepted when deferring a reply. */
 export type DeferReplyOptions = {
-        flags?: MessageFlagLike;
+	flags?: MessageFlagLike | MessageFlagLike[];
 };
 
 /**
  * Normalises helper flag enums into the raw Discord `MessageFlags` bitfield.
  *
- * @param flags - A flag from helper enums or raw Discord flags.
+ * @param flags - A flag or array of flags from helper enums or raw Discord flags.
  * @returns The value coerced to a `MessageFlags` compatible bitfield.
  */
 export function normaliseMessageFlags(
-        flags: MessageFlagLike | undefined,
+	flags: MessageFlagLike | MessageFlagLike[] | undefined,
 ): MessageFlags | undefined {
-        return flags === undefined ? undefined : (flags as MessageFlags);
+	if (flags === undefined) {
+		return undefined;
+	}
+
+	if (Array.isArray(flags)) {
+		if (flags.length === 0) {
+			return undefined;
+		}
+		// Combine multiple flags using bitwise OR
+		return flags.reduce<MessageFlags>(
+			(acc, flag) => (acc | (flag as MessageFlags)) as MessageFlags,
+			0 as MessageFlags,
+		);
+	}
+
+	return flags as MessageFlags;
 }
 
 /**
@@ -63,70 +81,73 @@ export function normaliseMessageFlags(
  * @returns A payload safe to send to Discord's API.
  */
 export function normaliseInteractionMessageData(
-        data?: InteractionMessageData,
+	data?: InteractionMessageData,
 ): APIInteractionResponseCallbackData | undefined {
-        if (!data) {
-                return undefined;
-        }
+	if (!data) {
+		return undefined;
+	}
 
-        const usesComponentsV2 = Array.isArray(data.components)
-                ? containsComponentsV2(data.components)
-                : false;
-        const normalisedFlags = normaliseMessageFlags(data.flags) as MessageFlags | undefined;
-        const finalFlags = usesComponentsV2
-                ? (((normalisedFlags ?? 0) | RawMessageFlags.IsComponentsV2) as MessageFlags)
-                : normalisedFlags;
+	const usesComponentsV2 = Array.isArray(data.components)
+		? containsComponentsV2(data.components)
+		: false;
+	const normalisedFlags = normaliseMessageFlags(data.flags) as
+		| MessageFlags
+		| undefined;
+	const finalFlags = usesComponentsV2
+		? (((normalisedFlags ?? 0) |
+				RawMessageFlags.IsComponentsV2) as MessageFlags)
+		: normalisedFlags;
 
-        if (finalFlags === data.flags) {
-                return data as APIInteractionResponseCallbackData;
-        }
+	if (finalFlags === data.flags) {
+		return data as APIInteractionResponseCallbackData;
+	}
 
-        const { flags: _flags, ...rest } = data;
+	const { flags: _flags, ...rest } = data;
 
-        return {
-                ...rest,
-                ...(finalFlags !== undefined ? { flags: finalFlags } : {}),
-        } as APIInteractionResponseCallbackData;
+	return {
+		...rest,
+		...(finalFlags !== undefined ? { flags: finalFlags } : {}),
+	} as APIInteractionResponseCallbackData;
 }
 
 function containsComponentsV2(components: readonly unknown[]): boolean {
-        return components.some((component) => componentUsesComponentsV2(component));
+	return components.some((component) => componentUsesComponentsV2(component));
 }
 
 function componentUsesComponentsV2(component: unknown): boolean {
-        const resolved = resolveComponentLike(component);
+	const resolved = resolveComponentLike(component);
 
-        if (!resolved || typeof resolved !== "object") {
-                return false;
-        }
+	if (!resolved || typeof resolved !== "object") {
+		return false;
+	}
 
-        const type = (resolved as Partial<APIMessageComponent>).type;
+	const type = (resolved as Partial<APIMessageComponent>).type;
 
-        if (typeof type !== "number") {
-                return false;
-        }
+	if (typeof type !== "number") {
+		return false;
+	}
 
-        if (COMPONENTS_V2_TYPES.has(type)) {
-                return true;
-        }
+	if (COMPONENTS_V2_TYPES.has(type)) {
+		return true;
+	}
 
-        if (type === ComponentType.ActionRow) {
-                const rowComponents = (resolved as { components?: unknown }).components;
-                if (Array.isArray(rowComponents)) {
-                        return containsComponentsV2(rowComponents);
-                }
-        }
+	if (type === ComponentType.ActionRow) {
+		const rowComponents = (resolved as { components?: unknown }).components;
+		if (Array.isArray(rowComponents)) {
+			return containsComponentsV2(rowComponents);
+		}
+	}
 
-        return false;
+	return false;
 }
 
 function resolveComponentLike(component: unknown): unknown {
-        if (component && typeof component === "object" && "toJSON" in component) {
-                const encoder = component as { toJSON?: unknown };
-                if (typeof encoder.toJSON === "function") {
-                        return encoder.toJSON();
-                }
-        }
+	if (component && typeof component === "object" && "toJSON" in component) {
+		const encoder = component as { toJSON?: unknown };
+		if (typeof encoder.toJSON === "function") {
+			return encoder.toJSON();
+		}
+	}
 
-        return component;
+	return component;
 }
