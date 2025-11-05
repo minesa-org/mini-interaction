@@ -512,7 +512,9 @@ export interface CommandInteraction
 		options?: DeferReplyOptions,
 	): APIInteractionResponseDeferredChannelMessageWithSource;
 	showModal(
-		data: APIModalInteractionResponseCallbackData,
+		data:
+			| APIModalInteractionResponseCallbackData
+			| { toJSON(): APIModalInteractionResponseCallbackData },
 	): APIModalInteractionResponse;
 }
 
@@ -637,9 +639,15 @@ export function createCommandInteraction(
 			);
 		},
 		showModal(data) {
+			const resolvedData: APIModalInteractionResponseCallbackData =
+				typeof data === "object" &&
+				"toJSON" in data &&
+				typeof data.toJSON === "function"
+					? data.toJSON()
+					: (data as APIModalInteractionResponseCallbackData);
 			return captureResponse({
 				type: InteractionResponseType.Modal,
-				data,
+				data: resolvedData,
 			});
 		},
 	};

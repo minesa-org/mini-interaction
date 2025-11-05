@@ -11,35 +11,37 @@ export { ChannelSelectMenuBuilder } from "./ChannelSelectMenuBuilder.js";
 export type { ChannelSelectMenuBuilderData } from "./ChannelSelectMenuBuilder.js";
 export { ModalBuilder } from "./ModalBuilder.js";
 export type { ModalBuilderData, ModalComponentLike } from "./ModalBuilder.js";
+export { TextInputBuilder } from "./TextInputBuilder.js";
+export type { TextInputBuilderData } from "./TextInputBuilder.js";
 export { AutomodRuleBuilder } from "./AutomodRuleBuilder.js";
 export type { AutomodRuleBuilderData } from "./AutomodRuleBuilder.js";
 export { EmbedBuilder } from "./EmbedBuilder.js";
 export type { EmbedBuilderData } from "./EmbedBuilder.js";
 export {
-        MiniContainerBuilder,
-        MiniSectionBuilder,
-        MiniTextDisplayBuilder,
-        MiniSeparatorBuilder,
-        MiniGalleryBuilder,
-        MiniGalleryItemBuilder,
-        MiniThumbnailBuilder,
+	ContainerBuilder,
+	SectionBuilder,
+	TextDisplayBuilder,
+	SeparatorBuilder,
+	GalleryBuilder,
+	GalleryItemBuilder,
+	ThumbnailBuilder,
 } from "./MiniContainerBuilder.js";
 export type {
-        MiniContainerBuilderData,
-        MiniSectionBuilderData,
-        MiniTextDisplayBuilderData,
-        MiniSeparatorBuilderData,
-        MiniGalleryBuilderData,
-        MiniGalleryItemBuilderData,
-        MiniThumbnailBuilderData,
-        MiniContainerComponent,
-        MiniSectionComponent,
-        MiniTextDisplayComponent,
-        MiniSeparatorComponent,
-        MiniGalleryComponent,
-        MiniGalleryItemComponent,
-        MiniThumbnailComponent,
-        MiniContentComponent,
-        MiniSectionAccessoryComponent,
+	ContainerBuilderData,
+	SectionBuilderData,
+	TextDisplayBuilderData,
+	SeparatorBuilderData,
+	GalleryBuilderData,
+	GalleryItemBuilderData,
+	ThumbnailBuilderData,
+	MiniContainerComponent,
+	MiniSectionComponent,
+	MiniTextDisplayComponent,
+	MiniSeparatorComponent,
+	MiniGalleryComponent,
+	MiniGalleryItemComponent,
+	MiniThumbnailComponent,
+	MiniContentComponent,
+	MiniSectionAccessoryComponent,
 } from "./MiniContainerBuilder.js";
 export type { JSONEncodable } from "./shared.js";

@@ -87,8 +87,17 @@ export function normaliseInteractionMessageData(
 		return undefined;
 	}
 
-	const usesComponentsV2 = Array.isArray(data.components)
-		? containsComponentsV2(data.components)
+	// Auto-convert builders to JSON
+	const normalisedComponents = data.components
+		? data.components.map((component) => resolveComponentLike(component))
+		: undefined;
+
+	const normalisedEmbeds = data.embeds
+		? data.embeds.map((embed) => resolveComponentLike(embed))
+		: undefined;
+
+	const usesComponentsV2 = Array.isArray(normalisedComponents)
+		? containsComponentsV2(normalisedComponents)
 		: false;
 	const normalisedFlags = normaliseMessageFlags(data.flags) as
 		| MessageFlags
@@ -98,14 +107,28 @@ export function normaliseInteractionMessageData(
 				RawMessageFlags.IsComponentsV2) as MessageFlags)
 		: normalisedFlags;
 
-	if (finalFlags === data.flags) {
+	const needsNormalisation =
+		finalFlags !== data.flags ||
+		normalisedComponents !== data.components ||
+		normalisedEmbeds !== data.embeds;
+
+	if (!needsNormalisation) {
 		return data as APIInteractionResponseCallbackData;
 	}
 
-	const { flags: _flags, ...rest } = data;
+	const {
+		flags: _flags,
+		components: _components,
+		embeds: _embeds,
+		...rest
+	} = data;
 
 	return {
 		...rest,
+		...(normalisedComponents !== undefined
+			? { components: normalisedComponents }
+			: {}),
+		...(normalisedEmbeds !== undefined ? { embeds: normalisedEmbeds } : {}),
 		...(finalFlags !== undefined ? { flags: finalFlags } : {}),
 	} as APIInteractionResponseCallbackData;
 }

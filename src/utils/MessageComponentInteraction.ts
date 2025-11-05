@@ -1,35 +1,51 @@
 import {
-        InteractionResponseType,
-        type APIInteractionResponse,
-        type APIInteractionResponseChannelMessageWithSource,
-        type APIInteractionResponseDeferredChannelMessageWithSource,
-        type APIInteractionResponseDeferredMessageUpdate,
-        type APIInteractionResponseUpdateMessage,
-        type APIMessageComponentInteraction,
+	InteractionResponseType,
+	type APIInteractionResponse,
+	type APIInteractionResponseChannelMessageWithSource,
+	type APIInteractionResponseDeferredChannelMessageWithSource,
+	type APIInteractionResponseDeferredMessageUpdate,
+	type APIInteractionResponseUpdateMessage,
+	type APIMessageComponentInteraction,
+	type APIModalInteractionResponse,
+	type APIModalInteractionResponseCallbackData,
 } from "discord-api-types/v10";
 
 import {
-        DeferReplyOptions,
-        InteractionMessageData,
-        normaliseInteractionMessageData,
-        normaliseMessageFlags,
+	DeferReplyOptions,
+	InteractionMessageData,
+	normaliseInteractionMessageData,
+	normaliseMessageFlags,
 } from "./interactionMessageHelpers.js";
 
 /**
  * Represents a component interaction augmented with helper response methods.
+ *
+ * Note: The `values` property is available on select menu interactions (data.values).
+ * For button interactions, this property will be undefined.
  */
 export type MessageComponentInteraction = APIMessageComponentInteraction & {
-        getResponse: () => APIInteractionResponse | null;
-        reply: (
-                data: InteractionMessageData,
-        ) => APIInteractionResponseChannelMessageWithSource;
-        deferReply: (
-                options?: DeferReplyOptions,
-        ) => APIInteractionResponseDeferredChannelMessageWithSource;
-        update: (
-                data?: InteractionMessageData,
-        ) => APIInteractionResponseUpdateMessage;
-        deferUpdate: () => APIInteractionResponseDeferredMessageUpdate;
+	getResponse: () => APIInteractionResponse | null;
+	reply: (
+		data: InteractionMessageData,
+	) => APIInteractionResponseChannelMessageWithSource;
+	deferReply: (
+		options?: DeferReplyOptions,
+	) => APIInteractionResponseDeferredChannelMessageWithSource;
+	update: (
+		data?: InteractionMessageData,
+	) => APIInteractionResponseUpdateMessage;
+	deferUpdate: () => APIInteractionResponseDeferredMessageUpdate;
+	showModal: (
+		data:
+			| APIModalInteractionResponseCallbackData
+			| { toJSON(): APIModalInteractionResponseCallbackData },
+	) => APIModalInteractionResponse;
+	/**
+	 * The selected values from a select menu interaction.
+	 * This property is only present for select menu interactions.
+	 * For button interactions, this will be undefined.
+	 */
+	values?: string[];
 };
 
 /**
@@ -39,78 +55,103 @@ export type MessageComponentInteraction = APIMessageComponentInteraction & {
  * @returns A helper-augmented interaction object.
  */
 export function createMessageComponentInteraction(
-        interaction: APIMessageComponentInteraction,
+	interaction: APIMessageComponentInteraction,
 ): MessageComponentInteraction {
-        let capturedResponse: APIInteractionResponse | null = null;
+	let capturedResponse: APIInteractionResponse | null = null;
 
-        const captureResponse = <T extends APIInteractionResponse>(response: T): T => {
-                capturedResponse = response;
-                return response;
-        };
+	const captureResponse = <T extends APIInteractionResponse>(
+		response: T,
+	): T => {
+		capturedResponse = response;
+		return response;
+	};
 
-        const reply = (
-                data: InteractionMessageData,
-        ): APIInteractionResponseChannelMessageWithSource => {
-                const normalisedData = normaliseInteractionMessageData(data);
-                if (!normalisedData) {
-                        throw new Error(
-                                "[MiniInteraction] Component replies require response data to be provided.",
-                        );
-                }
+	const reply = (
+		data: InteractionMessageData,
+	): APIInteractionResponseChannelMessageWithSource => {
+		const normalisedData = normaliseInteractionMessageData(data);
+		if (!normalisedData) {
+			throw new Error(
+				"[MiniInteraction] Component replies require response data to be provided.",
+			);
+		}
 
-                return captureResponse({
-                        type: InteractionResponseType.ChannelMessageWithSource,
-                        data: normalisedData,
-                } satisfies APIInteractionResponseChannelMessageWithSource);
-        };
+		return captureResponse({
+			type: InteractionResponseType.ChannelMessageWithSource,
+			data: normalisedData,
+		} satisfies APIInteractionResponseChannelMessageWithSource);
+	};
 
-        const deferReply = (
-                options?: DeferReplyOptions,
-        ): APIInteractionResponseDeferredChannelMessageWithSource => {
-                const flags = normaliseMessageFlags(options?.flags);
+	const deferReply = (
+		options?: DeferReplyOptions,
+	): APIInteractionResponseDeferredChannelMessageWithSource => {
+		const flags = normaliseMessageFlags(options?.flags);
 
-                const response: APIInteractionResponseDeferredChannelMessageWithSource =
-                        flags !== undefined
-                                ? {
-                                          type: InteractionResponseType.DeferredChannelMessageWithSource,
-                                          data: { flags },
-                                  }
-                                : {
-                                          type: InteractionResponseType.DeferredChannelMessageWithSource,
-                                  };
+		const response: APIInteractionResponseDeferredChannelMessageWithSource =
+			flags !== undefined
+				? {
+						type: InteractionResponseType.DeferredChannelMessageWithSource,
+						data: { flags },
+				  }
+				: {
+						type: InteractionResponseType.DeferredChannelMessageWithSource,
+				  };
 
-                return captureResponse(response);
-        };
+		return captureResponse(response);
+	};
 
-        const update = (
-                data?: InteractionMessageData,
-        ): APIInteractionResponseUpdateMessage => {
-                const normalisedData = normaliseInteractionMessageData(data);
+	const update = (
+		data?: InteractionMessageData,
+	): APIInteractionResponseUpdateMessage => {
+		const normalisedData = normaliseInteractionMessageData(data);
 
-                const response: APIInteractionResponseUpdateMessage = normalisedData
-                        ? {
-                                  type: InteractionResponseType.UpdateMessage,
-                                  data: normalisedData,
-                          }
-                        : {
-                                  type: InteractionResponseType.UpdateMessage,
-                          };
+		const response: APIInteractionResponseUpdateMessage = normalisedData
+			? {
+					type: InteractionResponseType.UpdateMessage,
+					data: normalisedData,
+			  }
+			: {
+					type: InteractionResponseType.UpdateMessage,
+			  };
 
-                return captureResponse(response);
-        };
+		return captureResponse(response);
+	};
 
-        const deferUpdate = (): APIInteractionResponseDeferredMessageUpdate =>
-                captureResponse({
-                        type: InteractionResponseType.DeferredMessageUpdate,
-                });
+	const deferUpdate = (): APIInteractionResponseDeferredMessageUpdate =>
+		captureResponse({
+			type: InteractionResponseType.DeferredMessageUpdate,
+		});
 
-        const getResponse = (): APIInteractionResponse | null => capturedResponse;
+	const showModal = (
+		data:
+			| APIModalInteractionResponseCallbackData
+			| { toJSON(): APIModalInteractionResponseCallbackData },
+	): APIModalInteractionResponse => {
+		const resolvedData: APIModalInteractionResponseCallbackData =
+			typeof data === "object" &&
+			"toJSON" in data &&
+			typeof data.toJSON === "function"
+				? data.toJSON()
+				: (data as APIModalInteractionResponseCallbackData);
+		return captureResponse({
+			type: InteractionResponseType.Modal,
+			data: resolvedData,
+		});
+	};
 
-        return Object.assign(interaction, {
-                reply,
-                deferReply,
-                update,
-                deferUpdate,
-                getResponse,
-        });
+	const getResponse = (): APIInteractionResponse | null => capturedResponse;
+
+	// Extract values from select menu interactions
+	const values =
+		"values" in interaction.data ? interaction.data.values : undefined;
+
+	return Object.assign(interaction, {
+		reply,
+		deferReply,
+		update,
+		deferUpdate,
+		showModal,
+		getResponse,
+		values,
+	});
 }

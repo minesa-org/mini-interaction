@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type {
 	APIChatInputApplicationCommandInteraction,
 	APIMessageComponentInteraction,
+	APIModalSubmitInteraction,
 } from "discord-api-types/v10";
 import {
 	APIInteraction,
@@ -24,6 +25,10 @@ import {
 	createMessageComponentInteraction,
 	type MessageComponentInteraction,
 } from "../utils/MessageComponentInteraction.js";
+import {
+	createModalSubmitInteraction,
+	type ModalSubmitInteraction,
+} from "../utils/ModalSubmitInteraction.js";
 
 /** File extensions that are treated as loadable modules when auto-loading. */
 const SUPPORTED_MODULE_EXTENSIONS = new Set([
@@ -79,6 +84,17 @@ export type MiniInteractionComponent = {
 	handler: MiniInteractionComponentHandler;
 };
 
+/** Handler signature invoked for Discord modal submit interactions. */
+export type MiniInteractionModalHandler = (
+	interaction: ModalSubmitInteraction,
+) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
+
+/** Structure describing a modal handler mapped to a custom id. */
+export type MiniInteractionModal = {
+	customId: string;
+	handler: MiniInteractionModalHandler;
+};
+
 /** Node.js HTTP handler compatible with frameworks like Express or Next.js API routes. */
 export type MiniInteractionNodeHandler = (
 	request: IncomingMessage,
@@ -115,6 +131,10 @@ export class MiniInteraction {
 	private readonly componentHandlers = new Map<
 		string,
 		MiniInteractionComponentHandler
+	>();
+	private readonly modalHandlers = new Map<
+		string,
+		MiniInteractionModalHandler
 	>();
 	private commandsLoaded = false;
 	private loadCommandsPromise: Promise<void> | null = null;
@@ -180,6 +200,21 @@ export class MiniInteraction {
 		}
 
 		this.commands.set(commandName, command);
+
+		// Register components exported with the command
+		if (command.components && Array.isArray(command.components)) {
+			for (const component of command.components) {
+				this.useComponent(component);
+			}
+		}
+
+		// Register modals exported with the command
+		if (command.modals && Array.isArray(command.modals)) {
+			for (const modal of command.modals) {
+				this.useModal(modal);
+			}
+		}
+
 		return this;
 	}
 
@@ -231,6 +266,46 @@ export class MiniInteraction {
 	useComponents(components: MiniInteractionComponent[]): this {
 		for (const component of components) {
 			this.useComponent(component);
+		}
+
+		return this;
+	}
+
+	/**
+	 * Registers a single modal handler mapped to a custom identifier.
+	 *
+	 * @param modal - The modal definition to register.
+	 */
+	useModal(modal: MiniInteractionModal): this {
+		const customId = modal?.customId;
+		if (!customId) {
+			throw new Error("[MiniInteraction] modal.customId is required");
+		}
+
+		if (typeof modal.handler !== "function") {
+			throw new Error(
+				"[MiniInteraction] modal.handler must be a function",
+			);
+		}
+
+		if (this.modalHandlers.has(customId)) {
+			console.warn(
+				`[MiniInteraction] Modal "${customId}" already exists and will be overwritten.`,
+			);
+		}
+
+		this.modalHandlers.set(customId, modal.handler);
+		return this;
+	}
+
+	/**
+	 * Registers multiple modal handlers in a single call.
+	 *
+	 * @param modals - The modal definitions to register.
+	 */
+	useModals(modals: MiniInteractionModal[]): this {
+		for (const modal of modals) {
+			this.useModal(modal);
 		}
 
 		return this;
@@ -331,6 +406,20 @@ export class MiniInteraction {
 			}
 
 			this.commands.set(command.data.name, command);
+
+			// Register components exported from the command file
+			if (command.components && Array.isArray(command.components)) {
+				for (const component of command.components) {
+					this.useComponent(component);
+				}
+			}
+
+			// Register modals exported from the command file
+			if (command.modals && Array.isArray(command.modals)) {
+				for (const modal of command.modals) {
+					this.useModal(modal);
+				}
+			}
 		}
 
 		this.commandsLoaded = true;
@@ -494,6 +583,12 @@ export class MiniInteraction {
 		if (interaction.type === InteractionType.MessageComponent) {
 			return this.handleMessageComponent(
 				interaction as APIMessageComponentInteraction,
+			);
+		}
+
+		if (interaction.type === InteractionType.ModalSubmit) {
+			return this.handleModalSubmit(
+				interaction as APIModalSubmitInteraction,
 			);
 		}
 
@@ -820,11 +915,10 @@ export class MiniInteraction {
 		}
 
 		if (!this.loadComponentsPromise) {
-			this.loadComponentsPromise = this.loadComponentsFromDirectory().then(
-				() => {
+			this.loadComponentsPromise =
+				this.loadComponentsFromDirectory().then(() => {
 					this.loadComponentsPromise = null;
-				},
-			);
+				});
 		}
 
 		await this.loadComponentsPromise;
@@ -878,7 +972,10 @@ export class MiniInteraction {
 
 		const isWithin = (parent: string, child: string): boolean => {
 			const relative = path.relative(parent, child);
-			return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+			return (
+				relative === "" ||
+				(!relative.startsWith("..") && !path.isAbsolute(relative))
+			);
 		};
 
 		const pushCandidate = (candidate: string): void => {
@@ -890,7 +987,10 @@ export class MiniInteraction {
 		const ensureWithinAllowedRoots = (absolutePath: string): void => {
 			if (!allowedRoots.some((root) => isWithin(root, absolutePath))) {
 				throw new Error(
-					`[MiniInteraction] Directory overrides must be located within "${path.join(projectRoot, "src")}" or "${path.join(
+					`[MiniInteraction] Directory overrides must be located within "${path.join(
+						projectRoot,
+						"src",
+					)}" or "${path.join(
 						projectRoot,
 						"dist",
 					)}". Received: ${absolutePath}`,
@@ -999,6 +1099,66 @@ export class MiniInteraction {
 				status: 500,
 				body: {
 					error: `[MiniInteraction] Component "${customId}" failed: ${String(
+						error,
+					)}`,
+				},
+			};
+		}
+	}
+
+	/**
+	 * Handles execution of a modal submit interaction.
+	 */
+	private async handleModalSubmit(
+		interaction: APIModalSubmitInteraction,
+	): Promise<MiniInteractionHandlerResult> {
+		const customId = interaction?.data?.custom_id;
+		if (!customId) {
+			return {
+				status: 400,
+				body: {
+					error: "[MiniInteraction] Modal submit interaction is missing a custom_id",
+				},
+			};
+		}
+
+		const handler = this.modalHandlers.get(customId);
+		if (!handler) {
+			return {
+				status: 404,
+				body: {
+					error: `[MiniInteraction] No handler registered for modal "${customId}"`,
+				},
+			};
+		}
+
+		try {
+			const interactionWithHelpers =
+				createModalSubmitInteraction(interaction);
+			const response = await handler(interactionWithHelpers);
+			const resolvedResponse =
+				response ?? interactionWithHelpers.getResponse();
+
+			if (!resolvedResponse) {
+				return {
+					status: 500,
+					body: {
+						error:
+							`[MiniInteraction] Modal "${customId}" did not return a response. ` +
+							"Return an APIInteractionResponse to acknowledge the interaction.",
+					},
+				};
+			}
+
+			return {
+				status: 200,
+				body: resolvedResponse,
+			};
+		} catch (error) {
+			return {
+				status: 500,
+				body: {
+					error: `[MiniInteraction] Modal "${customId}" failed: ${String(
 						error,
 					)}`,
 				},
