@@ -1,7 +1,12 @@
 import type {
 	APIModalInteractionResponseCallbackComponent,
 	APIModalInteractionResponseCallbackData,
+	APITextInputComponent,
+	APIComponentInLabel,
+	APISelectMenuComponent,
+	APIFileUploadComponent,
 } from "discord-api-types/v10";
+import { ComponentType } from "discord-api-types/v10";
 
 import { resolveJSONEncodable } from "./shared.js";
 import type { JSONEncodable } from "./shared.js";
@@ -9,7 +14,15 @@ import type { JSONEncodable } from "./shared.js";
 /** Values accepted when composing modal component rows. */
 export type ModalComponentLike =
 	| JSONEncodable<APIModalInteractionResponseCallbackComponent>
-	| APIModalInteractionResponseCallbackComponent;
+	| APIModalInteractionResponseCallbackComponent
+	| JSONEncodable<APITextInputComponent>
+	| APITextInputComponent
+	| JSONEncodable<APIComponentInLabel>
+	| APIComponentInLabel
+	| JSONEncodable<APISelectMenuComponent>
+	| APISelectMenuComponent
+	| JSONEncodable<APIFileUploadComponent>
+	| APIFileUploadComponent;
 
 /** Shape describing initial modal data accepted by the builder. */
 export type ModalBuilderData = {
@@ -91,12 +104,45 @@ export class ModalBuilder
 			);
 		}
 
+		// Auto-wrap components that need wrapping
+		const normalizedComponents = this.components.map((component) => {
+			const resolved = resolveJSONEncodable(component);
+
+			if (
+				!resolved ||
+				typeof resolved !== "object" ||
+				!("type" in resolved)
+			) {
+				return resolved;
+			}
+
+			const componentType = resolved.type;
+
+			// If it's a TextInput, SelectMenu, or FileUpload component, wrap it in an ActionRow
+			// (ActionRows in modals are deprecated, but still supported for backwards compatibility)
+			if (
+				componentType === ComponentType.TextInput ||
+				componentType === ComponentType.StringSelect ||
+				componentType === ComponentType.UserSelect ||
+				componentType === ComponentType.RoleSelect ||
+				componentType === ComponentType.MentionableSelect ||
+				componentType === ComponentType.ChannelSelect ||
+				componentType === ComponentType.FileUpload
+			) {
+				return {
+					type: ComponentType.ActionRow,
+					components: [resolved],
+				};
+			}
+
+			return resolved;
+		});
+
 		return {
 			custom_id: this.customId,
 			title: this.title,
-			components: this.components.map((component) =>
-				resolveJSONEncodable(component),
-			),
+			components:
+				normalizedComponents as APIModalInteractionResponseCallbackComponent[],
 		};
 	}
 }
