@@ -19,9 +19,7 @@ export type TextInputBuilderData = {
 };
 
 /** Builder for Discord text input components used in modals. */
-export class TextInputBuilder
-	implements JSONEncodable<APITextInputComponent>
-{
+export class TextInputBuilder implements JSONEncodable<APITextInputComponent> {
 	private data: TextInputBuilderData;
 
 	/**
@@ -112,9 +110,8 @@ export class TextInputBuilder
 			throw new Error("[TextInputBuilder] custom_id is required.");
 		}
 
-		if (!this.data.label) {
-			throw new Error("[TextInputBuilder] label is required.");
-		}
+		// Note: label is optional when used inside a LabelComponent
+		// but required when used standalone in an ActionRow
 
 		return {
 			type: ComponentType.TextInput,
@@ -129,4 +126,3 @@ export class TextInputBuilder
 		};
 	}
 }
-

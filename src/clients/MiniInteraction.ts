@@ -835,6 +835,7 @@ export class MiniInteraction {
 
 	/**
 	 * Dynamically imports and validates a component module from disk.
+	 * Also handles modal components if they're in a "modals" subdirectory.
 	 */
 	private async importComponentModule(
 		absolutePath: string,
@@ -847,6 +848,8 @@ export class MiniInteraction {
 				imported.component ??
 				imported.components ??
 				imported.componentDefinition ??
+				imported.modal ??
+				imported.modals ??
 				imported;
 
 			const candidates = Array.isArray(candidate)
@@ -854,6 +857,11 @@ export class MiniInteraction {
 				: [candidate];
 
 			const components: MiniInteractionComponent[] = [];
+
+			// Check if this file is in a "modals" subdirectory
+			const isModalFile =
+				absolutePath.includes(path.sep + "modals" + path.sep) ||
+				absolutePath.includes("/modals/");
 
 			for (const item of candidates) {
 				if (!item || typeof item !== "object") {
@@ -876,10 +884,19 @@ export class MiniInteraction {
 					continue;
 				}
 
-				components.push({ customId, handler });
+				// If it's in a modals directory, register it as a modal
+				if (isModalFile) {
+					this.useModal({
+						customId,
+						handler:
+							handler as unknown as MiniInteractionModalHandler,
+					});
+				} else {
+					components.push({ customId, handler });
+				}
 			}
 
-			if (components.length === 0) {
+			if (components.length === 0 && !isModalFile) {
 				console.warn(
 					`[MiniInteraction] Component module "${absolutePath}" did not export any valid components. Skipping.`,
 				);
@@ -1121,6 +1138,8 @@ export class MiniInteraction {
 				},
 			};
 		}
+
+		await this.ensureComponentsLoaded();
 
 		const handler = this.modalHandlers.get(customId);
 		if (!handler) {
