@@ -9,7 +9,6 @@ import type { JSONEncodable } from "./shared.js";
 /** Shape describing initial text input data accepted by the builder. */
 export type TextInputBuilderData = {
 	customId?: string;
-	label?: string;
 	style?: TextInputStyle;
 	minLength?: number;
 	maxLength?: number;
@@ -28,7 +27,6 @@ export class TextInputBuilder implements JSONEncodable<APITextInputComponent> {
 	constructor(data: TextInputBuilderData = {}) {
 		this.data = {
 			customId: data.customId,
-			label: data.label,
 			style: data.style ?? TextInputStyle.Short,
 			minLength: data.minLength,
 			maxLength: data.maxLength,
@@ -43,14 +41,6 @@ export class TextInputBuilder implements JSONEncodable<APITextInputComponent> {
 	 */
 	setCustomId(customId: string): this {
 		this.data.customId = customId;
-		return this;
-	}
-
-	/**
-	 * Sets the label displayed above the text input.
-	 */
-	setLabel(label: string): this {
-		this.data.label = label;
 		return this;
 	}
 
@@ -116,7 +106,6 @@ export class TextInputBuilder implements JSONEncodable<APITextInputComponent> {
 		return {
 			type: ComponentType.TextInput,
 			custom_id: this.data.customId,
-			label: this.data.label,
 			style: this.data.style ?? TextInputStyle.Short,
 			min_length: this.data.minLength,
 			max_length: this.data.maxLength,
