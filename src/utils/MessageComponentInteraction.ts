@@ -1,4 +1,5 @@
 import {
+	ComponentType,
 	InteractionResponseType,
 	type APIInteractionDataResolvedChannel,
 	type APIInteractionDataResolvedGuildMember,
@@ -8,6 +9,12 @@ import {
 	type APIInteractionResponseDeferredMessageUpdate,
 	type APIInteractionResponseUpdateMessage,
 	type APIMessageComponentInteraction,
+	type APIMessageButtonInteractionData,
+	type APIMessageChannelSelectInteractionData,
+	type APIMessageMentionableSelectInteractionData,
+	type APIMessageRoleSelectInteractionData,
+	type APIMessageStringSelectInteractionData,
+	type APIMessageUserSelectInteractionData,
 	type APIModalInteractionResponse,
 	type APIModalInteractionResponseCallbackData,
 	type APIRole,
@@ -31,6 +38,96 @@ export type ResolvedUserOption = {
 export type ResolvedMentionableOption =
 	| { type: "user"; value: ResolvedUserOption }
 	| { type: "role"; value: APIRole };
+
+/**
+ * Base helper methods available on all component interactions.
+ */
+type BaseComponentInteractionHelpers = {
+	getResponse: () => APIInteractionResponse | null;
+	reply: (
+		data: InteractionMessageData,
+	) => APIInteractionResponseChannelMessageWithSource;
+	deferReply: (
+		options?: DeferReplyOptions,
+	) => APIInteractionResponseDeferredChannelMessageWithSource;
+	update: (
+		data?: InteractionMessageData,
+	) => APIInteractionResponseUpdateMessage;
+	deferUpdate: () => APIInteractionResponseDeferredMessageUpdate;
+	showModal: (
+		data:
+			| APIModalInteractionResponseCallbackData
+			| { toJSON(): APIModalInteractionResponseCallbackData },
+	) => APIModalInteractionResponse;
+};
+
+/**
+ * Button interaction with helper methods.
+ * Buttons don't have values or resolved data.
+ */
+export type ButtonInteraction = Omit<APIMessageComponentInteraction, "data"> & {
+	data: APIMessageButtonInteractionData;
+} & BaseComponentInteractionHelpers;
+
+/**
+ * String select menu interaction with helper methods.
+ */
+export type StringSelectInteraction = Omit<
+	APIMessageComponentInteraction,
+	"data"
+> & {
+	data: APIMessageStringSelectInteractionData;
+	values: string[];
+	getStringValues: () => string[];
+} & BaseComponentInteractionHelpers;
+
+/**
+ * Role select menu interaction with helper methods.
+ */
+export type RoleSelectInteraction = Omit<
+	APIMessageComponentInteraction,
+	"data"
+> & {
+	data: APIMessageRoleSelectInteractionData;
+	values: string[];
+	getRoles: () => APIRole[];
+} & BaseComponentInteractionHelpers;
+
+/**
+ * User select menu interaction with helper methods.
+ */
+export type UserSelectInteraction = Omit<
+	APIMessageComponentInteraction,
+	"data"
+> & {
+	data: APIMessageUserSelectInteractionData;
+	values: string[];
+	getUsers: () => ResolvedUserOption[];
+} & BaseComponentInteractionHelpers;
+
+/**
+ * Channel select menu interaction with helper methods.
+ */
+export type ChannelSelectInteraction = Omit<
+	APIMessageComponentInteraction,
+	"data"
+> & {
+	data: APIMessageChannelSelectInteractionData;
+	values: string[];
+	getChannels: () => APIInteractionDataResolvedChannel[];
+} & BaseComponentInteractionHelpers;
+
+/**
+ * Mentionable select menu interaction with helper methods.
+ */
+export type MentionableSelectInteraction = Omit<
+	APIMessageComponentInteraction,
+	"data"
+> & {
+	data: APIMessageMentionableSelectInteractionData;
+	values: string[];
+	getMentionables: () => ResolvedMentionableOption[];
+} & BaseComponentInteractionHelpers;
 
 /**
  * Represents a component interaction augmented with helper response methods.

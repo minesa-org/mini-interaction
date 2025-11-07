@@ -46,6 +46,12 @@ export type {
 } from "./types/Commands.js";
 export type {
 	MiniInteractionComponent,
+	MiniInteractionButtonHandler,
+	MiniInteractionStringSelectHandler,
+	MiniInteractionRoleSelectHandler,
+	MiniInteractionUserSelectHandler,
+	MiniInteractionChannelSelectHandler,
+	MiniInteractionMentionableSelectHandler,
 	MiniInteractionComponentHandler,
 	MiniInteractionModal,
 	MiniInteractionModalHandler,
@@ -53,6 +59,12 @@ export type {
 } from "./clients/MiniInteraction.js";
 export type {
 	MessageComponentInteraction,
+	ButtonInteraction,
+	StringSelectInteraction,
+	RoleSelectInteraction,
+	UserSelectInteraction,
+	ChannelSelectInteraction,
+	MentionableSelectInteraction,
 	ResolvedUserOption as ComponentResolvedUserOption,
 	ResolvedMentionableOption as ComponentResolvedMentionableOption,
 } from "./utils/MessageComponentInteraction.js";

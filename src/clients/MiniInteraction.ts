@@ -26,6 +26,12 @@ import { createCommandInteraction } from "../utils/CommandInteractionOptions.js"
 import {
 	createMessageComponentInteraction,
 	type MessageComponentInteraction,
+	type ButtonInteraction,
+	type StringSelectInteraction,
+	type RoleSelectInteraction,
+	type UserSelectInteraction,
+	type ChannelSelectInteraction,
+	type MentionableSelectInteraction,
 } from "../utils/MessageComponentInteraction.js";
 import {
 	createModalSubmitInteraction,
@@ -75,7 +81,37 @@ export type MiniInteractionHandlerResult = {
 	body: APIInteractionResponse | { error: string };
 };
 
-/** Handler signature invoked for Discord message component interactions. */
+/** Handler signature invoked for Discord button interactions. */
+export type MiniInteractionButtonHandler = (
+	interaction: ButtonInteraction,
+) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
+
+/** Handler signature invoked for Discord string select menu interactions. */
+export type MiniInteractionStringSelectHandler = (
+	interaction: StringSelectInteraction,
+) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
+
+/** Handler signature invoked for Discord role select menu interactions. */
+export type MiniInteractionRoleSelectHandler = (
+	interaction: RoleSelectInteraction,
+) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
+
+/** Handler signature invoked for Discord user select menu interactions. */
+export type MiniInteractionUserSelectHandler = (
+	interaction: UserSelectInteraction,
+) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
+
+/** Handler signature invoked for Discord channel select menu interactions. */
+export type MiniInteractionChannelSelectHandler = (
+	interaction: ChannelSelectInteraction,
+) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
+
+/** Handler signature invoked for Discord mentionable select menu interactions. */
+export type MiniInteractionMentionableSelectHandler = (
+	interaction: MentionableSelectInteraction,
+) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
+
+/** Handler signature invoked for Discord message component interactions (generic). */
 export type MiniInteractionComponentHandler = (
 	interaction: MessageComponentInteraction,
 ) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
@@ -85,8 +121,14 @@ export type MiniInteractionModalHandler = (
 	interaction: ModalSubmitInteraction,
 ) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
 
-/** Unified handler signature that accepts both component and modal interactions. */
+/** Unified handler signature that accepts any component or modal interaction. */
 export type MiniInteractionHandler =
+	| MiniInteractionButtonHandler
+	| MiniInteractionStringSelectHandler
+	| MiniInteractionRoleSelectHandler
+	| MiniInteractionUserSelectHandler
+	| MiniInteractionChannelSelectHandler
+	| MiniInteractionMentionableSelectHandler
 	| MiniInteractionComponentHandler
 	| MiniInteractionModalHandler;
 
