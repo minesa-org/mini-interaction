@@ -11,9 +11,11 @@ import type {
 import {
 	APIInteraction,
 	APIInteractionResponse,
+	ApplicationCommandType,
 	InteractionResponseType,
 	InteractionType,
 	RESTPostAPIChatInputApplicationCommandsJSONBody,
+	RESTPostAPIContextMenuApplicationCommandsJSONBody,
 } from "discord-api-types/v10";
 import { verifyKey } from "discord-interactions";
 
@@ -444,19 +446,25 @@ export class MiniInteraction {
 	/**
 	 * Lists the raw command data payloads for registration with Discord.
 	 */
-	listCommandData(): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
+	listCommandData(): (
+		| RESTPostAPIChatInputApplicationCommandsJSONBody
+		| RESTPostAPIContextMenuApplicationCommandsJSONBody
+	)[] {
 		return Array.from(this.commands.values(), (command) => command.data);
 	}
 
 	/**
-	 * Registers slash commands with Discord's REST API.
+	 * Registers commands with Discord's REST API.
 	 *
 	 * @param botToken - The bot token authorising the registration request.
 	 * @param commands - Optional command list to register instead of auto-loaded commands.
 	 */
 	async registerCommands(
 		botToken: string,
-		commands?: RESTPostAPIChatInputApplicationCommandsJSONBody[],
+		commands?: (
+			| RESTPostAPIChatInputApplicationCommandsJSONBody
+			| RESTPostAPIContextMenuApplicationCommandsJSONBody
+		)[],
 	): Promise<unknown> {
 		if (!botToken) {
 			throw new Error("[MiniInteraction] botToken is required");
@@ -1232,13 +1240,25 @@ export class MiniInteraction {
 			};
 		}
 
-		const interactionWithHelpers =
-			createCommandInteraction(commandInteraction);
-
 		try {
-			const response = await command.handler(interactionWithHelpers);
-			const resolvedResponse =
-				response ?? interactionWithHelpers.getResponse();
+			let response: APIInteractionResponse | void;
+			let resolvedResponse: APIInteractionResponse | null = null;
+
+			// Check if it's a chat input (slash) command
+			if (
+				commandInteraction.data.type ===
+				ApplicationCommandType.ChatInput
+			) {
+				const interactionWithHelpers =
+					createCommandInteraction(commandInteraction);
+				response = await command.handler(interactionWithHelpers as any);
+				resolvedResponse =
+					response ?? interactionWithHelpers.getResponse();
+			} else {
+				// Context menu commands (User or Message) - pass raw interaction
+				response = await command.handler(commandInteraction as any);
+				resolvedResponse = response ?? null;
+			}
 
 			if (!resolvedResponse) {
 				return {

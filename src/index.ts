@@ -40,6 +40,9 @@ export type {
 export type {
 	MiniInteractionCommand,
 	SlashCommandHandler,
+	UserCommandHandler,
+	MessageCommandHandler,
+	CommandHandler,
 } from "./types/Commands.js";
 export type {
 	MiniInteractionComponent,
