@@ -1,5 +1,7 @@
 import {
 	InteractionResponseType,
+	type APIInteractionDataResolvedChannel,
+	type APIInteractionDataResolvedGuildMember,
 	type APIInteractionResponse,
 	type APIInteractionResponseChannelMessageWithSource,
 	type APIInteractionResponseDeferredChannelMessageWithSource,
@@ -8,6 +10,8 @@ import {
 	type APIMessageComponentInteraction,
 	type APIModalInteractionResponse,
 	type APIModalInteractionResponseCallbackData,
+	type APIRole,
+	type APIUser,
 } from "discord-api-types/v10";
 
 import {
@@ -16,6 +20,17 @@ import {
 	normaliseInteractionMessageData,
 	normaliseMessageFlags,
 } from "./interactionMessageHelpers.js";
+
+/** Resolved user option including optional guild member data. */
+export type ResolvedUserOption = {
+	user: APIUser;
+	member?: APIInteractionDataResolvedGuildMember;
+};
+
+/** Resolved mentionable option (either a user or role). */
+export type ResolvedMentionableOption =
+	| { type: "user"; value: ResolvedUserOption }
+	| { type: "role"; value: APIRole };
 
 /**
  * Represents a component interaction augmented with helper response methods.
@@ -46,6 +61,31 @@ export type MessageComponentInteraction = APIMessageComponentInteraction & {
 	 * For button interactions, this will be undefined.
 	 */
 	values?: string[];
+	/**
+	 * Helper method to get selected string values from a string select menu.
+	 * @returns Array of selected string values, or empty array if not a string select menu
+	 */
+	getStringValues: () => string[];
+	/**
+	 * Helper method to get selected roles from a role select menu.
+	 * @returns Array of resolved role objects, or empty array if not a role select menu
+	 */
+	getRoles: () => APIRole[];
+	/**
+	 * Helper method to get selected channels from a channel select menu.
+	 * @returns Array of resolved channel objects, or empty array if not a channel select menu
+	 */
+	getChannels: () => APIInteractionDataResolvedChannel[];
+	/**
+	 * Helper method to get selected users from a user select menu.
+	 * @returns Array of resolved user objects (with optional member data), or empty array if not a user select menu
+	 */
+	getUsers: () => ResolvedUserOption[];
+	/**
+	 * Helper method to get selected mentionables from a mentionable select menu.
+	 * @returns Array of resolved mentionable objects (users or roles), or empty array if not a mentionable select menu
+	 */
+	getMentionables: () => ResolvedMentionableOption[];
 };
 
 /**
@@ -145,6 +185,108 @@ export function createMessageComponentInteraction(
 	const values =
 		"values" in interaction.data ? interaction.data.values : undefined;
 
+	// Helper methods for select menu interactions
+	const getStringValues = (): string[] => {
+		return values ?? [];
+	};
+
+	const getRoles = (): APIRole[] => {
+		if (!values) {
+			return [];
+		}
+		// Type guard: check if resolved data exists
+		const resolved =
+			"resolved" in interaction.data
+				? (interaction.data.resolved as any)
+				: undefined;
+		if (!resolved?.roles) {
+			return [];
+		}
+		const roles: APIRole[] = [];
+		for (const roleId of values) {
+			const role = resolved.roles[roleId];
+			if (role) {
+				roles.push(role);
+			}
+		}
+		return roles;
+	};
+
+	const getChannels = (): APIInteractionDataResolvedChannel[] => {
+		if (!values) {
+			return [];
+		}
+		// Type guard: check if resolved data exists
+		const resolved =
+			"resolved" in interaction.data
+				? (interaction.data.resolved as any)
+				: undefined;
+		if (!resolved?.channels) {
+			return [];
+		}
+		const channels: APIInteractionDataResolvedChannel[] = [];
+		for (const channelId of values) {
+			const channel = resolved.channels[channelId];
+			if (channel) {
+				channels.push(channel);
+			}
+		}
+		return channels;
+	};
+
+	const getUsers = (): ResolvedUserOption[] => {
+		if (!values) {
+			return [];
+		}
+		// Type guard: check if resolved data exists
+		const resolved =
+			"resolved" in interaction.data
+				? (interaction.data.resolved as any)
+				: undefined;
+		if (!resolved?.users) {
+			return [];
+		}
+		const users: ResolvedUserOption[] = [];
+		for (const userId of values) {
+			const user = resolved.users[userId];
+			if (user) {
+				const member = resolved.members?.[userId];
+				users.push({ user, member });
+			}
+		}
+		return users;
+	};
+
+	const getMentionables = (): ResolvedMentionableOption[] => {
+		if (!values) {
+			return [];
+		}
+		// Type guard: check if resolved data exists
+		const resolved =
+			"resolved" in interaction.data
+				? (interaction.data.resolved as any)
+				: undefined;
+		if (!resolved) {
+			return [];
+		}
+		const mentionables: ResolvedMentionableOption[] = [];
+		for (const id of values) {
+			// Check if it's a role
+			const role = resolved.roles?.[id];
+			if (role) {
+				mentionables.push({ type: "role", value: role });
+				continue;
+			}
+			// Check if it's a user
+			const user = resolved.users?.[id];
+			if (user) {
+				const member = resolved.members?.[id];
+				mentionables.push({ type: "user", value: { user, member } });
+			}
+		}
+		return mentionables;
+	};
+
 	return Object.assign(interaction, {
 		reply,
 		deferReply,
@@ -153,5 +295,10 @@ export function createMessageComponentInteraction(
 		showModal,
 		getResponse,
 		values,
+		getStringValues,
+		getRoles,
+		getChannels,
+		getUsers,
+		getMentionables,
 	});
 }

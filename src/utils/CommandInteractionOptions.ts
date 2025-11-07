@@ -5,7 +5,9 @@ import {
 	type APIInteractionResponse,
 	type APIApplicationCommandInteractionDataAttachmentOption,
 	type APIApplicationCommandInteractionDataBasicOption,
+	type APIApplicationCommandInteractionDataBooleanOption,
 	type APIApplicationCommandInteractionDataChannelOption,
+	type APIApplicationCommandInteractionDataIntegerOption,
 	type APIApplicationCommandInteractionDataMentionableOption,
 	type APIApplicationCommandInteractionDataNumberOption,
 	type APIApplicationCommandInteractionDataOption,
@@ -230,15 +232,43 @@ export class CommandInteractionOptionResolver {
 	}
 
 	/**
-	 * Looks up a numeric option by name.
+	 * Looks up an integer option by name.
 	 *
 	 * @param name - The option name to resolve.
 	 * @param required - Whether to throw when the option is missing.
+	 */
+	getInteger(name: string, required = false): number | null {
+		const option = this.extractOption<
+			APIApplicationCommandInteractionDataIntegerOption<InteractionType.ApplicationCommand>
+		>(name, ApplicationCommandOptionType.Integer, required);
+		return option ? option.value : null;
+	}
+
+	/**
+	 * Looks up a numeric option by name.
+	 *
+	 * @param name - The option name to resolve.
 	 */
 	getNumber(name: string, required = false): number | null {
 		const option = this.extractOption<
 			APIApplicationCommandInteractionDataNumberOption<InteractionType.ApplicationCommand>
 		>(name, ApplicationCommandOptionType.Number, required);
+		return option ? option.value : null;
+	}
+
+	/**
+	 * Looks up a boolean option by name.
+	 *
+	 * @param name - The option name to resolve.
+	 * @param required - Whether to throw when the option is missing.
+	 */
+	getBoolean(name: string, required = false): boolean | null {
+		const option =
+			this.extractOption<APIApplicationCommandInteractionDataBooleanOption>(
+				name,
+				ApplicationCommandOptionType.Boolean,
+				required,
+			);
 		return option ? option.value : null;
 	}
 

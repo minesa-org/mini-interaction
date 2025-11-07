@@ -6,6 +6,10 @@ export {
 	CommandContext,
 	IntegrationType,
 } from "./commands/CommandBuilder.js";
+export {
+	UserCommandBuilder,
+	MessageCommandBuilder,
+} from "./commands/ContextMenuCommandBuilder.js";
 export type {
 	AttachmentOptionBuilder,
 	ChannelOptionBuilder,
@@ -44,7 +48,11 @@ export type {
 	MiniInteractionModalHandler,
 	MiniInteractionHandler,
 } from "./clients/MiniInteraction.js";
-export type { MessageComponentInteraction } from "./utils/MessageComponentInteraction.js";
+export type {
+	MessageComponentInteraction,
+	ResolvedUserOption as ComponentResolvedUserOption,
+	ResolvedMentionableOption as ComponentResolvedMentionableOption,
+} from "./utils/MessageComponentInteraction.js";
 export type { ModalSubmitInteraction } from "./utils/ModalSubmitInteraction.js";
 export { RoleConnectionMetadataTypes } from "./types/RoleConnectionMetadataTypes.js";
 export { ChannelType } from "./types/ChannelType.js";
