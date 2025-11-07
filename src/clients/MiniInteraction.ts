@@ -37,6 +37,12 @@ import {
 	createModalSubmitInteraction,
 	type ModalSubmitInteraction,
 } from "../utils/ModalSubmitInteraction.js";
+import {
+	createUserContextMenuInteraction,
+	createMessageContextMenuInteraction,
+	type UserContextMenuInteraction,
+	type MessageContextMenuInteraction,
+} from "../utils/ContextMenuInteraction.js";
 
 /** File extensions that are treated as loadable modules when auto-loading. */
 const SUPPORTED_MODULE_EXTENSIONS = new Set([
@@ -1296,8 +1302,29 @@ export class MiniInteraction {
 				response = await command.handler(interactionWithHelpers as any);
 				resolvedResponse =
 					response ?? interactionWithHelpers.getResponse();
+			} else if (
+				commandInteraction.data.type === ApplicationCommandType.User
+			) {
+				// User context menu command
+				const interactionWithHelpers = createUserContextMenuInteraction(
+					commandInteraction as any,
+				);
+				response = await command.handler(interactionWithHelpers as any);
+				resolvedResponse =
+					response ?? interactionWithHelpers.getResponse();
+			} else if (
+				commandInteraction.data.type === ApplicationCommandType.Message
+			) {
+				// Message context menu command
+				const interactionWithHelpers =
+					createMessageContextMenuInteraction(
+						commandInteraction as any,
+					);
+				response = await command.handler(interactionWithHelpers as any);
+				resolvedResponse =
+					response ?? interactionWithHelpers.getResponse();
 			} else {
-				// Context menu commands (User or Message) - pass raw interaction
+				// Unknown command type
 				response = await command.handler(commandInteraction as any);
 				resolvedResponse = response ?? null;
 			}

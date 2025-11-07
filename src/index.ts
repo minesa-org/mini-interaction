@@ -31,6 +31,10 @@ export type {
 	ResolvedUserOption,
 } from "./utils/CommandInteractionOptions.js";
 export type {
+	UserContextMenuInteraction,
+	MessageContextMenuInteraction,
+} from "./utils/ContextMenuInteraction.js";
+export type {
 	MiniInteractionFetchHandler,
 	MiniInteractionNodeHandler,
 	MiniInteractionHandlerResult,

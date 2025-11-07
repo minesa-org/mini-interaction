@@ -2,11 +2,13 @@ import type {
 	APIInteractionResponse,
 	RESTPostAPIChatInputApplicationCommandsJSONBody,
 	RESTPostAPIContextMenuApplicationCommandsJSONBody,
-	APIUserApplicationCommandInteraction,
-	APIMessageApplicationCommandInteraction,
 } from "discord-api-types/v10";
 
 import type { CommandInteraction } from "../utils/CommandInteractionOptions.js";
+import type {
+	UserContextMenuInteraction,
+	MessageContextMenuInteraction,
+} from "../utils/ContextMenuInteraction.js";
 import type {
 	MiniInteractionComponent,
 	MiniInteractionModal,
@@ -19,12 +21,12 @@ export type SlashCommandHandler = (
 
 /** Handler signature for user context menu command executions within MiniInteraction. */
 export type UserCommandHandler = (
-	interaction: APIUserApplicationCommandInteraction,
+	interaction: UserContextMenuInteraction,
 ) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
 
 /** Handler signature for message context menu command executions within MiniInteraction. */
 export type MessageCommandHandler = (
-	interaction: APIMessageApplicationCommandInteraction,
+	interaction: MessageContextMenuInteraction,
 ) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
 
 /** Union of all command handler types. */
