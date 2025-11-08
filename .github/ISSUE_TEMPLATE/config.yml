@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📘 Documentation
+    url: https://github.com/minesa-org/mini-interaction/wiki
+    about: Check the official wiki for setup and API reference
+  - name: 💬 Discussions
+    url: https://github.com/minesa-org/mini-interaction/discussions
+    about: For general questions or ideas, use Discussions instead of issues
