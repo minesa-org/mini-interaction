@@ -7,32 +7,34 @@ import {
 
 import type { JSONEncodable } from "./shared.js";
 
-/** Shape describing initial role select menu data accepted by the builder. */
-export type RoleSelectMenuBuilderData = {
+/** Shape describing initial modal role select menu data accepted by the builder. */
+export type ModalRoleSelectMenuBuilderData = {
 	customId?: string;
 	placeholder?: string;
 	minValues?: number;
 	maxValues?: number;
 	disabled?: boolean;
+	required?: boolean;
 	defaultValues?: APISelectMenuDefaultValue<SelectMenuDefaultValueType.Role>[];
 };
 
-/** Builder for Discord role select menu components. */
-export class RoleSelectMenuBuilder
+/** Builder for Discord role select menu components in modals. */
+export class ModalRoleSelectMenuBuilder
 	implements JSONEncodable<APIRoleSelectComponent>
 {
-	private data: RoleSelectMenuBuilderData;
+	private data: ModalRoleSelectMenuBuilderData;
 
 	/**
-	 * Creates a new role select menu builder with optional seed data.
+	 * Creates a new modal role select menu builder with optional seed data.
 	 */
-	constructor(data: RoleSelectMenuBuilderData = {}) {
+	constructor(data: ModalRoleSelectMenuBuilderData = {}) {
 		this.data = {
 			customId: data.customId,
 			placeholder: data.placeholder,
 			minValues: data.minValues,
 			maxValues: data.maxValues,
 			disabled: data.disabled,
+			required: data.required,
 			defaultValues: data.defaultValues
 				? data.defaultValues.map((value) => ({
 						...value,
@@ -83,6 +85,14 @@ export class RoleSelectMenuBuilder
 	}
 
 	/**
+	 * Marks the select menu as required in the modal.
+	 */
+	setRequired(required: boolean): this {
+		this.data.required = required;
+		return this;
+	}
+
+	/**
 	 * Replaces the default role selections displayed when the menu renders.
 	 */
 	setDefaultValues(
@@ -103,7 +113,7 @@ export class RoleSelectMenuBuilder
 	toJSON(): APIRoleSelectComponent {
 		const { customId } = this.data;
 		if (!customId) {
-			throw new Error("[RoleSelectMenuBuilder] custom id is required.");
+			throw new Error("[ModalRoleSelectMenuBuilder] custom id is required.");
 		}
 
 		return {
@@ -113,6 +123,7 @@ export class RoleSelectMenuBuilder
 			min_values: this.data.minValues,
 			max_values: this.data.maxValues,
 			disabled: this.data.disabled,
+			required: this.data.required,
 			default_values: this.data.defaultValues?.map((value) => ({
 				...value,
 				type: SelectMenuDefaultValueType.Role,
@@ -120,3 +131,4 @@ export class RoleSelectMenuBuilder
 		};
 	}
 }
+

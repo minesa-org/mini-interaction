@@ -1,42 +1,44 @@
 import {
 	ComponentType,
 	SelectMenuDefaultValueType,
-	type APIRoleSelectComponent,
+	type APIChannelSelectComponent,
 	type APISelectMenuDefaultValue,
 } from "discord-api-types/v10";
 
 import type { JSONEncodable } from "./shared.js";
 
-/** Shape describing initial role select menu data accepted by the builder. */
-export type RoleSelectMenuBuilderData = {
+/** Shape describing initial modal channel select menu data accepted by the builder. */
+export type ModalChannelSelectMenuBuilderData = {
 	customId?: string;
 	placeholder?: string;
 	minValues?: number;
 	maxValues?: number;
 	disabled?: boolean;
-	defaultValues?: APISelectMenuDefaultValue<SelectMenuDefaultValueType.Role>[];
+	required?: boolean;
+	defaultValues?: APISelectMenuDefaultValue<SelectMenuDefaultValueType.Channel>[];
 };
 
-/** Builder for Discord role select menu components. */
-export class RoleSelectMenuBuilder
-	implements JSONEncodable<APIRoleSelectComponent>
+/** Builder for Discord channel select menu components in modals. */
+export class ModalChannelSelectMenuBuilder
+	implements JSONEncodable<APIChannelSelectComponent>
 {
-	private data: RoleSelectMenuBuilderData;
+	private data: ModalChannelSelectMenuBuilderData;
 
 	/**
-	 * Creates a new role select menu builder with optional seed data.
+	 * Creates a new modal channel select menu builder with optional seed data.
 	 */
-	constructor(data: RoleSelectMenuBuilderData = {}) {
+	constructor(data: ModalChannelSelectMenuBuilderData = {}) {
 		this.data = {
 			customId: data.customId,
 			placeholder: data.placeholder,
 			minValues: data.minValues,
 			maxValues: data.maxValues,
 			disabled: data.disabled,
+			required: data.required,
 			defaultValues: data.defaultValues
 				? data.defaultValues.map((value) => ({
 						...value,
-						type: SelectMenuDefaultValueType.Role,
+						type: SelectMenuDefaultValueType.Channel,
 				  }))
 				: undefined,
 		};
@@ -51,7 +53,7 @@ export class RoleSelectMenuBuilder
 	}
 
 	/**
-	 * Sets or clears the placeholder text displayed when no role is selected.
+	 * Sets or clears the placeholder text displayed when no channel is selected.
 	 */
 	setPlaceholder(placeholder: string | null | undefined): this {
 		this.data.placeholder = placeholder ?? undefined;
@@ -59,7 +61,7 @@ export class RoleSelectMenuBuilder
 	}
 
 	/**
-	 * Sets the minimum number of roles that must be selected.
+	 * Sets the minimum number of channels that must be selected.
 	 */
 	setMinValues(minValues: number | null | undefined): this {
 		this.data.minValues = minValues ?? undefined;
@@ -67,7 +69,7 @@ export class RoleSelectMenuBuilder
 	}
 
 	/**
-	 * Sets the maximum number of roles that can be selected.
+	 * Sets the maximum number of channels that can be selected.
 	 */
 	setMaxValues(maxValues: number | null | undefined): this {
 		this.data.maxValues = maxValues ?? undefined;
@@ -83,40 +85,50 @@ export class RoleSelectMenuBuilder
 	}
 
 	/**
-	 * Replaces the default role selections displayed when the menu renders.
+	 * Marks the select menu as required in the modal.
+	 */
+	setRequired(required: boolean): this {
+		this.data.required = required;
+		return this;
+	}
+
+	/**
+	 * Replaces the default channel selections displayed when the menu renders.
 	 */
 	setDefaultValues(
 		defaultValues: Iterable<
-			APISelectMenuDefaultValue<SelectMenuDefaultValueType.Role>
+			APISelectMenuDefaultValue<SelectMenuDefaultValueType.Channel>
 		>,
 	): this {
 		this.data.defaultValues = Array.from(defaultValues, (value) => ({
 			...value,
-			type: SelectMenuDefaultValueType.Role,
+			type: SelectMenuDefaultValueType.Channel,
 		}));
 		return this;
 	}
 
 	/**
-	 * Serialises the builder into an API compatible role select menu payload.
+	 * Serialises the builder into an API compatible channel select menu payload.
 	 */
-	toJSON(): APIRoleSelectComponent {
+	toJSON(): APIChannelSelectComponent {
 		const { customId } = this.data;
 		if (!customId) {
-			throw new Error("[RoleSelectMenuBuilder] custom id is required.");
+			throw new Error("[ModalChannelSelectMenuBuilder] custom id is required.");
 		}
 
 		return {
-			type: ComponentType.RoleSelect,
+			type: ComponentType.ChannelSelect,
 			custom_id: customId,
 			placeholder: this.data.placeholder,
 			min_values: this.data.minValues,
 			max_values: this.data.maxValues,
 			disabled: this.data.disabled,
+			required: this.data.required,
 			default_values: this.data.defaultValues?.map((value) => ({
 				...value,
-				type: SelectMenuDefaultValueType.Role,
+				type: SelectMenuDefaultValueType.Channel,
 			})),
 		};
 	}
 }
+

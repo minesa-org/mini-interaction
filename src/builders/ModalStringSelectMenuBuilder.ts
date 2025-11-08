@@ -6,33 +6,35 @@ import {
 
 import type { JSONEncodable } from "./shared.js";
 
-/** Shape describing initial string select menu data accepted by the builder. */
-export type StringSelectMenuBuilderData = {
+/** Shape describing initial modal string select menu data accepted by the builder. */
+export type ModalStringSelectMenuBuilderData = {
 	customId?: string;
 	placeholder?: string;
 	minValues?: number;
 	maxValues?: number;
 	disabled?: boolean;
+	required?: boolean;
 	options?: APISelectMenuOption[];
 };
 
-/** Builder for Discord string select menu components. */
-export class StringSelectMenuBuilder
+/** Builder for Discord string select menu components in modals. */
+export class ModalStringSelectMenuBuilder
 	implements JSONEncodable<APIStringSelectComponent>
 {
-	private data: Required<Pick<StringSelectMenuBuilderData, "options">> &
-		Omit<StringSelectMenuBuilderData, "options">;
+	private data: Required<Pick<ModalStringSelectMenuBuilderData, "options">> &
+		Omit<ModalStringSelectMenuBuilderData, "options">;
 
 	/**
-	 * Creates a new string select menu builder with optional seed data.
+	 * Creates a new modal string select menu builder with optional seed data.
 	 */
-	constructor(data: StringSelectMenuBuilderData = {}) {
+	constructor(data: ModalStringSelectMenuBuilderData = {}) {
 		this.data = {
 			customId: data.customId,
 			placeholder: data.placeholder,
 			minValues: data.minValues,
 			maxValues: data.maxValues,
 			disabled: data.disabled,
+			required: data.required,
 			options: data.options ? [...data.options] : [],
 		};
 	}
@@ -78,18 +80,26 @@ export class StringSelectMenuBuilder
 	}
 
 	/**
-	 * Appends new option entries to the select menu.
+	 * Marks the select menu as required in the modal.
 	 */
-	addOptions(...options: APISelectMenuOption[]): this {
-		this.data.options.push(...options.map((option) => ({ ...option })));
+	setRequired(required: boolean): this {
+		this.data.required = required;
 		return this;
 	}
 
 	/**
-	 * Replaces the current option set with the provided iterable.
+	 * Adds an option to the select menu.
+	 */
+	addOption(option: APISelectMenuOption): this {
+		this.data.options.push(option);
+		return this;
+	}
+
+	/**
+	 * Replaces all options in the select menu.
 	 */
 	setOptions(options: Iterable<APISelectMenuOption>): this {
-		this.data.options = Array.from(options, (option) => ({ ...option }));
+		this.data.options = Array.from(options);
 		return this;
 	}
 
@@ -97,21 +107,9 @@ export class StringSelectMenuBuilder
 	 * Serialises the builder into an API compatible string select menu payload.
 	 */
 	toJSON(): APIStringSelectComponent {
-		const { customId, options } = this.data;
+		const { customId } = this.data;
 		if (!customId) {
-			throw new Error("[StringSelectMenuBuilder] custom id is required.");
-		}
-
-		if (options.length === 0) {
-			throw new Error(
-				"[StringSelectMenuBuilder] at least one option is required.",
-			);
-		}
-
-		if (options.length > 25) {
-			throw new Error(
-				"[StringSelectMenuBuilder] no more than 25 options can be provided.",
-			);
+			throw new Error("[ModalStringSelectMenuBuilder] custom id is required.");
 		}
 
 		return {
@@ -121,7 +119,9 @@ export class StringSelectMenuBuilder
 			min_values: this.data.minValues,
 			max_values: this.data.maxValues,
 			disabled: this.data.disabled,
-			options: options.map((option) => ({ ...option })),
+			required: this.data.required,
+			options: this.data.options,
 		};
 	}
 }
+

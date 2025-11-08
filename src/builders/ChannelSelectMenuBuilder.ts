@@ -16,7 +16,6 @@ export type ChannelSelectMenuBuilderData = {
 	minValues?: number;
 	maxValues?: number;
 	disabled?: boolean;
-	required?: boolean;
 	channelTypes?: ChannelType[];
 	defaultValues?: APISelectMenuDefaultValue<SelectMenuDefaultValueType.Channel>[];
 };
@@ -37,7 +36,6 @@ export class ChannelSelectMenuBuilder
 			minValues: data.minValues,
 			maxValues: data.maxValues,
 			disabled: data.disabled,
-			required: data.required,
 			channelTypes: data.channelTypes
 				? [...data.channelTypes]
 				: undefined,
@@ -91,14 +89,6 @@ export class ChannelSelectMenuBuilder
 	}
 
 	/**
-	 * Marks the select menu as requiring at least the minimum number of selections.
-	 */
-	setRequired(required: boolean): this {
-		this.data.required = required;
-		return this;
-	}
-
-	/**
 	 * Filters selectable channels by the provided channel types.
 	 */
 	setChannelTypes(channelTypes: Iterable<ChannelType>): this {
@@ -139,7 +129,6 @@ export class ChannelSelectMenuBuilder
 			min_values: this.data.minValues,
 			max_values: this.data.maxValues,
 			disabled: this.data.disabled,
-			required: this.data.required,
 			channel_types: this.data.channelTypes
 				? [...this.data.channelTypes]
 				: undefined,
