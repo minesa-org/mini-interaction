@@ -857,6 +857,11 @@ export class MiniInteraction {
 
 	/**
 	 * Dynamically imports and validates a command module from disk.
+	 * Supports multiple export patterns:
+	 * - export default { data, handler }
+	 * - export const command = { data, handler }
+	 * - export const ping_command = { data, handler }
+	 * - export const data = ...; export const handler = ...;
 	 */
 	private async importCommandModule(
 		absolutePath: string,
@@ -864,11 +869,39 @@ export class MiniInteraction {
 		try {
 			const moduleUrl = pathToFileURL(absolutePath).href;
 			const imported = await import(moduleUrl);
-			const candidate =
+
+			// Try to find a command object from various export patterns
+			let candidate =
 				imported.default ??
 				imported.command ??
-				imported.commandDefinition ??
-				imported;
+				imported.commandDefinition;
+
+			// If not found, look for named exports ending with "_command"
+			if (!candidate) {
+				for (const [key, value] of Object.entries(imported)) {
+					if (
+						key.endsWith("_command") &&
+						typeof value === "object" &&
+						value !== null
+					) {
+						candidate = value;
+						break;
+					}
+				}
+			}
+
+			// If still not found, try to construct from separate data/handler exports
+			if (!candidate) {
+				if (imported.data && imported.handler) {
+					candidate = {
+						data: imported.data,
+						handler: imported.handler,
+					};
+				} else {
+					// Last resort: use the entire module
+					candidate = imported;
+				}
+			}
 
 			if (!candidate || typeof candidate !== "object") {
 				console.warn(
@@ -906,6 +939,12 @@ export class MiniInteraction {
 	/**
 	 * Dynamically imports and validates a component module from disk.
 	 * Also handles modal components if they're in a "modals" subdirectory.
+	 * Supports multiple export patterns:
+	 * - export default { customId, handler }
+	 * - export const component = { customId, handler }
+	 * - export const ping_button = { customId, handler }
+	 * - export const customId = "..."; export const handler = ...;
+	 * - export const components = [{ customId, handler }, ...]
 	 */
 	private async importComponentModule(
 		absolutePath: string,
@@ -913,18 +952,51 @@ export class MiniInteraction {
 		try {
 			const moduleUrl = pathToFileURL(absolutePath).href;
 			const imported = await import(moduleUrl);
-			const candidate =
+
+			// Collect all potential component candidates
+			const candidates: unknown[] = [];
+
+			// Try standard exports first
+			const standardExport =
 				imported.default ??
 				imported.component ??
 				imported.components ??
 				imported.componentDefinition ??
 				imported.modal ??
-				imported.modals ??
-				imported;
+				imported.modals;
 
-			const candidates = Array.isArray(candidate)
-				? candidate
-				: [candidate];
+			if (standardExport) {
+				if (Array.isArray(standardExport)) {
+					candidates.push(...standardExport);
+				} else {
+					candidates.push(standardExport);
+				}
+			}
+
+			// Look for named exports ending with "_button", "_select", "_modal", etc.
+			for (const [key, value] of Object.entries(imported)) {
+				if (
+					(key.endsWith("_button") ||
+						key.endsWith("_select") ||
+						key.endsWith("_modal") ||
+						key.endsWith("_component")) &&
+					typeof value === "object" &&
+					value !== null &&
+					!candidates.includes(value)
+				) {
+					candidates.push(value);
+				}
+			}
+
+			// If no candidates found, try to construct from separate customId/handler exports
+			if (candidates.length === 0) {
+				if (imported.customId && imported.handler) {
+					candidates.push({
+						customId: imported.customId,
+						handler: imported.handler,
+					});
+				}
+			}
 
 			const components: MiniInteractionComponent[] = [];
 
