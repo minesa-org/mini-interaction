@@ -5,6 +5,8 @@ export { ButtonBuilder } from "./ButtonBuilder.js";
 export type { ButtonBuilderData } from "./ButtonBuilder.js";
 export { StringSelectMenuBuilder } from "./StringSelectMenuBuilder.js";
 export type { StringSelectMenuBuilderData } from "./StringSelectMenuBuilder.js";
+export { StringSelectMenuOptionBuilder } from "./StringSelectMenuOptionBuilder.js";
+export type { StringSelectMenuOptionBuilderData } from "./StringSelectMenuOptionBuilder.js";
 export { RoleSelectMenuBuilder } from "./RoleSelectMenuBuilder.js";
 export type { RoleSelectMenuBuilderData } from "./RoleSelectMenuBuilder.js";
 export { ChannelSelectMenuBuilder } from "./ChannelSelectMenuBuilder.js";

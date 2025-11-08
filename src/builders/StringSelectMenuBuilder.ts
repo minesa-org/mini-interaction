@@ -5,6 +5,7 @@ import {
 } from "discord-api-types/v10";
 
 import type { JSONEncodable } from "./shared.js";
+import type { StringSelectMenuOptionBuilder } from "./StringSelectMenuOptionBuilder.js";
 
 /** Shape describing initial string select menu data accepted by the builder. */
 export type StringSelectMenuBuilderData = {
@@ -80,16 +81,40 @@ export class StringSelectMenuBuilder
 	/**
 	 * Appends new option entries to the select menu.
 	 */
-	addOptions(...options: APISelectMenuOption[]): this {
-		this.data.options.push(...options.map((option) => ({ ...option })));
+	addOptions(
+		...options: (
+			| APISelectMenuOption
+			| StringSelectMenuOptionBuilder
+			| JSONEncodable<APISelectMenuOption>
+		)[]
+	): this {
+		this.data.options.push(
+			...options.map((option) => {
+				if ("toJSON" in option && typeof option.toJSON === "function") {
+					return { ...option.toJSON() };
+				}
+				return { ...(option as APISelectMenuOption) };
+			}),
+		);
 		return this;
 	}
 
 	/**
 	 * Replaces the current option set with the provided iterable.
 	 */
-	setOptions(options: Iterable<APISelectMenuOption>): this {
-		this.data.options = Array.from(options, (option) => ({ ...option }));
+	setOptions(
+		options: Iterable<
+			| APISelectMenuOption
+			| StringSelectMenuOptionBuilder
+			| JSONEncodable<APISelectMenuOption>
+		>,
+	): this {
+		this.data.options = Array.from(options, (option) => {
+			if ("toJSON" in option && typeof option.toJSON === "function") {
+				return { ...option.toJSON() };
+			}
+			return { ...(option as APISelectMenuOption) };
+		});
 		return this;
 	}
 

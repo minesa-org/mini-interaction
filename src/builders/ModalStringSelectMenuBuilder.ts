@@ -5,6 +5,7 @@ import {
 } from "discord-api-types/v10";
 
 import type { JSONEncodable } from "./shared.js";
+import type { StringSelectMenuOptionBuilder } from "./StringSelectMenuOptionBuilder.js";
 
 /** Shape describing initial modal string select menu data accepted by the builder. */
 export type ModalStringSelectMenuBuilderData = {
@@ -90,16 +91,57 @@ export class ModalStringSelectMenuBuilder
 	/**
 	 * Adds an option to the select menu.
 	 */
-	addOption(option: APISelectMenuOption): this {
-		this.data.options.push(option);
+	addOption(
+		option:
+			| APISelectMenuOption
+			| StringSelectMenuOptionBuilder
+			| JSONEncodable<APISelectMenuOption>,
+	): this {
+		if ("toJSON" in option && typeof option.toJSON === "function") {
+			this.data.options.push({ ...option.toJSON() });
+		} else {
+			this.data.options.push({ ...(option as APISelectMenuOption) });
+		}
+		return this;
+	}
+
+	/**
+	 * Appends new option entries to the select menu.
+	 */
+	addOptions(
+		...options: (
+			| APISelectMenuOption
+			| StringSelectMenuOptionBuilder
+			| JSONEncodable<APISelectMenuOption>
+		)[]
+	): this {
+		this.data.options.push(
+			...options.map((option) => {
+				if ("toJSON" in option && typeof option.toJSON === "function") {
+					return { ...option.toJSON() };
+				}
+				return { ...(option as APISelectMenuOption) };
+			}),
+		);
 		return this;
 	}
 
 	/**
 	 * Replaces all options in the select menu.
 	 */
-	setOptions(options: Iterable<APISelectMenuOption>): this {
-		this.data.options = Array.from(options);
+	setOptions(
+		options: Iterable<
+			| APISelectMenuOption
+			| StringSelectMenuOptionBuilder
+			| JSONEncodable<APISelectMenuOption>
+		>,
+	): this {
+		this.data.options = Array.from(options, (option) => {
+			if ("toJSON" in option && typeof option.toJSON === "function") {
+				return { ...option.toJSON() };
+			}
+			return { ...(option as APISelectMenuOption) };
+		});
 		return this;
 	}
 
@@ -109,7 +151,9 @@ export class ModalStringSelectMenuBuilder
 	toJSON(): APIStringSelectComponent {
 		const { customId } = this.data;
 		if (!customId) {
-			throw new Error("[ModalStringSelectMenuBuilder] custom id is required.");
+			throw new Error(
+				"[ModalStringSelectMenuBuilder] custom id is required.",
+			);
 		}
 
 		return {
@@ -124,4 +168,3 @@ export class ModalStringSelectMenuBuilder
 		};
 	}
 }
-
