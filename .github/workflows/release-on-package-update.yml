@@ -1,0 +1,28 @@
+name: Release on package update
+
+on:
+    push:
+        branches: [main]
+        paths:
+            - "package.json"
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Read version
+              id: pkg
+              run: echo "version=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: v${{ steps.pkg.outputs.version }}
+                  name: Release v${{ steps.pkg.outputs.version }}
+                  body: |
+                      Automated release for package version ${{ steps.pkg.outputs.version }}.
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
