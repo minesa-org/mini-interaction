@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
@@ -243,18 +243,19 @@ export class MiniInteraction {
 	public readonly publicKey: string;
 	private readonly baseUrl: string;
 	private readonly fetchImpl: typeof fetch;
-	private readonly verifyKeyImpl: VerifyKeyFunction;
-	private readonly commandsDirectory: string | null;
-	private readonly componentsDirectory: string | null;
-	private readonly commands = new Map<string, MiniInteractionCommand>();
-	private readonly componentHandlers = new Map<
-		string,
-		MiniInteractionComponentHandler
-	>();
-	private readonly modalHandlers = new Map<
-		string,
-		MiniInteractionModalHandler
-	>();
+        private readonly verifyKeyImpl: VerifyKeyFunction;
+        private readonly commandsDirectory: string | null;
+        private readonly componentsDirectory: string | null;
+        private readonly commands = new Map<string, MiniInteractionCommand>();
+        private readonly componentHandlers = new Map<
+                string,
+                MiniInteractionComponentHandler
+        >();
+        private readonly modalHandlers = new Map<
+                string,
+                MiniInteractionModalHandler
+        >();
+        private readonly htmlTemplateCache = new Map<string, string>();
 	private commandsLoaded = false;
 	private loadCommandsPromise: Promise<void> | null = null;
 	private componentsLoaded = false;
@@ -814,6 +815,109 @@ export class MiniInteraction {
         }
 
         /**
+         * Loads an HTML file and returns a success template that replaces useful placeholders.
+         *
+         * The following placeholders are available in the HTML file:
+         * - `{{username}}`, `{{discriminator}}`, `{{user_id}}`, `{{user_tag}}`
+         * - `{{access_token}}`, `{{refresh_token}}`, `{{token_type}}`, `{{scope}}`, `{{expires_at}}`
+         * - `{{state}}`
+         */
+        connectedOAuthPage(
+                filePath: string,
+        ): DiscordOAuthCallbackTemplates["success"] {
+                const template = this.loadHtmlTemplate(filePath);
+
+                return ({ user, tokens, state }) => {
+                        const discriminator = user.discriminator;
+                        const userTag =
+                                discriminator && discriminator !== "0"
+                                        ? `${user.username}#${discriminator}`
+                                        : user.username;
+
+                        return this.renderHtmlTemplate(template, {
+                                username: user.username,
+                                discriminator,
+                                user_id: user.id,
+                                user_tag: userTag,
+                                access_token: tokens.access_token,
+                                refresh_token: tokens.refresh_token,
+                                token_type: tokens.token_type,
+                                scope: tokens.scope,
+                                expires_at: tokens.expires_at.toString(),
+                                state,
+                        });
+                };
+        }
+
+        /**
+         * Loads an HTML file and returns an error template that can be reused for all failure cases.
+         *
+         * The following placeholders are available in the HTML file:
+         * - `{{error}}`
+         * - `{{state}}`
+         */
+        failedOAuthPage(
+                filePath: string,
+        ): ((context: DiscordOAuthErrorTemplateContext) => string) &
+                ((context: DiscordOAuthStateTemplateContext) => string) {
+                const template = this.loadHtmlTemplate(filePath);
+
+                const renderer = (context: {
+                        error?: string | null;
+                        state: string | null;
+                }) =>
+                        this.renderHtmlTemplate(template, {
+                                error: context.error,
+                                state: context.state,
+                        });
+
+                return renderer as unknown as ((
+                        context: DiscordOAuthErrorTemplateContext,
+                ) => string) & ((context: DiscordOAuthStateTemplateContext) => string);
+        }
+
+        /**
+         * Resolves an HTML template from disk and caches the result for reuse.
+         */
+        private loadHtmlTemplate(filePath: string): string {
+                const resolvedPath = path.isAbsolute(filePath)
+                        ? filePath
+                        : path.join(process.cwd(), filePath);
+
+                const cached = this.htmlTemplateCache.get(resolvedPath);
+                if (cached) {
+                        return cached;
+                }
+
+                if (!existsSync(resolvedPath)) {
+                        throw new Error(
+                                `[MiniInteraction] HTML template not found: ${resolvedPath}`,
+                        );
+                }
+
+                const fileContents = readFileSync(resolvedPath, "utf8");
+                this.htmlTemplateCache.set(resolvedPath, fileContents);
+                return fileContents;
+        }
+
+        /**
+         * Replaces placeholder tokens in a template with escaped HTML values.
+         */
+        private renderHtmlTemplate(
+                template: string,
+                values: Record<string, string | null | undefined>,
+        ): string {
+                return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key: string) => {
+                        const value = values[key];
+                        if (value === undefined || value === null) {
+                                return "";
+                        }
+
+                        return escapeHtml(String(value));
+                });
+        }
+
+        /**
          * Creates a minimal Discord OAuth callback handler that renders helpful HTML responses.
          *
          * This helper keeps the user-side implementation tiny while still exposing hooks for
@@ -1010,9 +1114,9 @@ export class MiniInteraction {
 	/**
 	 * Recursively collects all command module file paths from the target directory.
 	 */
-	private async collectModuleFiles(directory: string): Promise<string[]> {
-		const entries = await readdir(directory, { withFileTypes: true });
-		const files: string[] = [];
+        private async collectModuleFiles(directory: string): Promise<string[]> {
+                const entries = await readdir(directory, { withFileTypes: true });
+                const files: string[] = [];
 
 		for (const entry of entries) {
 			if (entry.name.startsWith(".")) {
