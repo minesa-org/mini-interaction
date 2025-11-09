@@ -1,11 +1,10 @@
-import { promises as fs } from "fs";
-import path from "path";
 import type { MiniDataBuilder } from "./MiniDataBuilder.js";
+import { MiniDatabaseBuilder } from "./MiniDatabaseBuilder.js";
 import type { DatabaseConfig } from "./MiniDatabaseBuilder.js";
 
 /**
- * MiniDatabase provides async data storage with support for JSON and MongoDB backends.
- * Designed to work seamlessly with Vercel and serverless environments.
+ * MiniDatabase provides async data storage backed by MongoDB.
+ * Designed to work seamlessly with Vercel and other serverless environments.
  *
  * @example
  * ```typescript
@@ -22,36 +21,59 @@ import type { DatabaseConfig } from "./MiniDatabaseBuilder.js";
  * ```
  */
 export class MiniDatabase {
-	private config: DatabaseConfig;
-	private schema?: MiniDataBuilder;
-	private mongoClient?: any;
-	private mongoDb?: any;
-	private mongoCollection?: any;
-	private initPromise?: Promise<void>;
+        private config: DatabaseConfig;
+        private schema?: MiniDataBuilder;
+        private mongoClient?: any;
+        private mongoDb?: any;
+        private mongoCollection?: any;
+        private initPromise?: Promise<void>;
 
-	constructor(config: DatabaseConfig, schema?: MiniDataBuilder) {
-		this.config = config;
-		this.schema = schema;
-	}
+        /**
+         * Creates a MiniDatabase instance using an environment variable for the MongoDB URI.
+         * Defaults to the `MONGODB_URI` variable expected by Vercel and many hosting providers.
+         */
+        static fromEnv(
+                schema?: MiniDataBuilder,
+                options?: {
+                        variable?: string;
+                        dbName?: string;
+                        collectionName?: string;
+                },
+        ): MiniDatabase {
+                const variable = options?.variable ?? "MONGODB_URI";
+                const uri = process.env[variable];
+
+                if (!uri) {
+                        throw new Error(
+                                `[MiniDatabase] Environment variable "${variable}" is not set`,
+                        );
+                }
+
+                const builder = new MiniDatabaseBuilder()
+                        .setMongoUri(uri)
+                        .setDbName(options?.dbName ?? "minidb")
+                        .setCollectionName(options?.collectionName ?? "data");
+
+                return new MiniDatabase(builder.build(), schema);
+        }
+
+        constructor(config: DatabaseConfig, schema?: MiniDataBuilder) {
+                this.config = config;
+                this.schema = schema;
+        }
 
 	/**
 	 * Initializes the database connection.
 	 */
-	private async initialize(): Promise<void> {
-		if (this.initPromise) {
-			return this.initPromise;
-		}
+        private async initialize(): Promise<void> {
+                if (this.initPromise) {
+                        return this.initPromise;
+                }
 
-		this.initPromise = (async () => {
-			if (this.config.type === "mongodb") {
-				await this.initializeMongoDB();
-			} else {
-				await this.initializeJSON();
-			}
-		})();
+                this.initPromise = this.initializeMongoDB();
 
-		return this.initPromise;
-	}
+                return this.initPromise;
+        }
 
 	/**
 	 * Initializes MongoDB connection.
@@ -69,44 +91,24 @@ export class MiniDatabase {
 				);
 			}
 
-			if (!this.config.mongoUri) {
-				throw new Error("MongoDB URI is required");
-			}
+                        if (!this.config.mongoUri) {
+                                throw new Error("MongoDB URI is required");
+                        }
 
-			this.mongoClient = new MongoClient(this.config.mongoUri, {
-				maxPoolSize: 5,
-			});
+                        this.mongoClient = new MongoClient(this.config.mongoUri, {
+                                maxPoolSize: 5,
+                        });
 
-			await this.mongoClient.connect();
-			this.mongoDb = this.mongoClient.db(this.config.dbName || "minidb");
-			this.mongoCollection = this.mongoDb.collection(
-				this.config.collectionName || "data",
-			);
+                        await this.mongoClient.connect();
+                        this.mongoDb = this.mongoClient.db(this.config.dbName || "minidb");
+                        this.mongoCollection = this.mongoDb.collection(
+                                this.config.collectionName || "data",
+                        );
 
-			console.log("✅ [MiniDatabase] Connected to MongoDB");
-		} catch (err) {
-			console.error(
+                        console.log("✅ [MiniDatabase] Connected to MongoDB");
+                } catch (err) {
+                        console.error(
 				"❌ [MiniDatabase] Failed to connect to MongoDB:",
-				err,
-			);
-			throw err;
-		}
-	}
-
-	/**
-	 * Initializes JSON file storage.
-	 */
-	private async initializeJSON(): Promise<void> {
-		try {
-			const dataPath = this.config.dataPath || "./data";
-			await fs.mkdir(dataPath, { recursive: true });
-			console.log(
-				"✅ [MiniDatabase] JSON storage initialized at",
-				dataPath,
-			);
-		} catch (err) {
-			console.error(
-				"❌ [MiniDatabase] Failed to initialize JSON storage:",
 				err,
 			);
 			throw err;
@@ -117,30 +119,24 @@ export class MiniDatabase {
 	 * Gets data by key.
 	 */
 	async get(key: string): Promise<Record<string, unknown> | null> {
-		await this.initialize();
+                await this.initialize();
 
-		try {
-			if (this.config.type === "mongodb") {
-				const doc = await this.mongoCollection.findOne({ _id: key });
-				return doc ? { ...doc, _id: undefined } : null;
-			} else {
-				const filePath = path.join(
-					this.config.dataPath || "./data",
-					`${key}.json`,
-				);
-				try {
-					const data = await fs.readFile(filePath, "utf-8");
-					return JSON.parse(data);
-				} catch (err: any) {
-					if (err.code === "ENOENT") {
-						return null;
-					}
-					throw err;
-				}
-			}
-		} catch (err) {
-			console.error(
-				`❌ [MiniDatabase] Failed to get data for key "${key}":`,
+                try {
+                        const collection = this.mongoCollection;
+                        if (!collection) {
+                                throw new Error("MongoDB collection is not initialized");
+                        }
+
+                        const doc = await collection.findOne({ _id: key });
+                        if (!doc) {
+                                return null;
+                        }
+
+                        const { _id, ...rest } = doc as Record<string, unknown>;
+                        return rest;
+                } catch (err) {
+                        console.error(
+                                `❌ [MiniDatabase] Failed to get data for key "${key}":`,
 				err,
 			);
 			return null;
@@ -151,50 +147,44 @@ export class MiniDatabase {
 	 * Sets data by key (overwrites existing data).
 	 */
 	async set(key: string, data: Record<string, unknown>): Promise<boolean> {
-		await this.initialize();
+                await this.initialize();
 
-		try {
-			// Validate against schema if provided
-			if (this.schema) {
-				const validation = this.schema.validate(data);
-				if (!validation.valid) {
-					throw new Error(
+                try {
+                        const collection = this.mongoCollection;
+                        if (!collection) {
+                                throw new Error("MongoDB collection is not initialized");
+                        }
+
+                        // Validate against schema if provided
+                        if (this.schema) {
+                                const validation = this.schema.validate(data);
+                                if (!validation.valid) {
+                                        throw new Error(
 						`Validation failed: ${validation.errors.join(", ")}`,
 					);
 				}
 			}
 
-			const dataWithDefaults = this.schema
-				? this.schema.applyDefaults(data)
-				: data;
+                        const dataWithDefaults = this.schema
+                                ? this.schema.applyDefaults(data)
+                                : data;
 
-			if (this.config.type === "mongodb") {
-				await this.mongoCollection.updateOne(
-					{ _id: key },
-					{
-						$set: {
-							...dataWithDefaults,
-							_id: key,
-							updatedAt: new Date(),
-						},
-						$setOnInsert: {
-							createdAt: new Date(),
-						},
-					},
-					{ upsert: true },
-				);
-			} else {
-				const filePath = path.join(
-					this.config.dataPath || "./data",
-					`${key}.json`,
-				);
-				await fs.writeFile(
-					filePath,
-					JSON.stringify(dataWithDefaults, null, 2),
-				);
-			}
+                        await collection.updateOne(
+                                { _id: key },
+                                {
+                                        $set: {
+                                                ...dataWithDefaults,
+                                                _id: key,
+                                                updatedAt: new Date(),
+                                        },
+                                        $setOnInsert: {
+                                                createdAt: new Date(),
+                                        },
+                                },
+                                { upsert: true },
+                        );
 
-			console.log(`✅ [MiniDatabase] Saved data for key "${key}"`);
+                        console.log(`✅ [MiniDatabase] Saved data for key "${key}"`);
 			return true;
 		} catch (err) {
 			console.error(
@@ -212,13 +202,18 @@ export class MiniDatabase {
 		key: string,
 		updates: Record<string, unknown>,
 	): Promise<boolean> {
-		await this.initialize();
+                await this.initialize();
 
-		try {
-			const existing = await this.get(key);
-			const merged = { ...existing, ...updates };
+                try {
+                        const collection = this.mongoCollection;
+                        if (!collection) {
+                                throw new Error("MongoDB collection is not initialized");
+                        }
 
-			// Validate merged data against schema if provided
+                        const existing = await this.get(key);
+                        const merged = { ...(existing ?? {}), ...updates };
+
+                        // Validate merged data against schema if provided
 			if (this.schema) {
 				const validation = this.schema.validate(merged);
 				if (!validation.valid) {
@@ -228,34 +223,23 @@ export class MiniDatabase {
 				}
 			}
 
-			const dataWithDefaults = this.schema
-				? this.schema.applyDefaults(merged)
-				: merged;
+                        const dataWithDefaults = this.schema
+                                ? this.schema.applyDefaults(merged)
+                                : merged;
 
-			if (this.config.type === "mongodb") {
-				await this.mongoCollection.updateOne(
-					{ _id: key },
-					{
-						$set: {
-							...dataWithDefaults,
-							updatedAt: new Date(),
-						},
-						$setOnInsert: {
-							createdAt: new Date(),
-						},
-					},
-					{ upsert: true },
-				);
-			} else {
-				const filePath = path.join(
-					this.config.dataPath || "./data",
-					`${key}.json`,
-				);
-				await fs.writeFile(
-					filePath,
-					JSON.stringify(dataWithDefaults, null, 2),
-				);
-			}
+                        await collection.updateOne(
+                                { _id: key },
+                                {
+                                        $set: {
+                                                ...dataWithDefaults,
+                                                updatedAt: new Date(),
+                                        },
+                                        $setOnInsert: {
+                                                createdAt: new Date(),
+                                        },
+                                },
+                                { upsert: true },
+                        );
 
 			console.log(`✅ [MiniDatabase] Updated data for key "${key}"`);
 			return true;
@@ -272,20 +256,17 @@ export class MiniDatabase {
 	 * Deletes data by key.
 	 */
 	async delete(key: string): Promise<boolean> {
-		await this.initialize();
+                await this.initialize();
 
-		try {
-			if (this.config.type === "mongodb") {
-				await this.mongoCollection.deleteOne({ _id: key });
-			} else {
-				const filePath = path.join(
-					this.config.dataPath || "./data",
-					`${key}.json`,
-				);
-				await fs.unlink(filePath);
-			}
+                try {
+                        const collection = this.mongoCollection;
+                        if (!collection) {
+                                throw new Error("MongoDB collection is not initialized");
+                        }
 
-			console.log(`✅ [MiniDatabase] Deleted data for key "${key}"`);
+                        await collection.deleteOne({ _id: key });
+
+                        console.log(`✅ [MiniDatabase] Deleted data for key "${key}"`);
 			return true;
 		} catch (err) {
 			console.error(

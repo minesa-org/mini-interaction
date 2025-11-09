@@ -35,11 +35,18 @@ export type {
 	MessageContextMenuInteraction,
 } from "./utils/ContextMenuInteraction.js";
 export type {
-	MiniInteractionFetchHandler,
-	MiniInteractionNodeHandler,
-	MiniInteractionHandlerResult,
-	MiniInteractionRequest,
-	MiniInteractionOptions,
+        MiniInteractionFetchHandler,
+        MiniInteractionNodeHandler,
+        MiniInteractionHandlerResult,
+        MiniInteractionRequest,
+        MiniInteractionOptions,
+        DiscordOAuthAuthorizeContext,
+        DiscordOAuthCallbackOptions,
+        DiscordOAuthCallbackTemplates,
+        DiscordOAuthErrorTemplateContext,
+        DiscordOAuthServerErrorTemplateContext,
+        DiscordOAuthStateTemplateContext,
+        DiscordOAuthSuccessTemplateContext,
 } from "./clients/MiniInteraction.js";
 export type {
 	MiniInteractionCommand,

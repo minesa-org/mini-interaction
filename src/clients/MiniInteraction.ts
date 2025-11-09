@@ -1,12 +1,12 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type {
-	APIChatInputApplicationCommandInteraction,
-	APIMessageComponentInteraction,
-	APIModalSubmitInteraction,
+        APIChatInputApplicationCommandInteraction,
+        APIMessageComponentInteraction,
+        APIModalSubmitInteraction,
 } from "discord-api-types/v10";
 import {
 	APIInteraction,
@@ -24,9 +24,9 @@ import type { MiniInteractionCommand } from "../types/Commands.js";
 import { RoleConnectionMetadataTypes } from "../types/RoleConnectionMetadataTypes.js";
 import { createCommandInteraction } from "../utils/CommandInteractionOptions.js";
 import {
-	createMessageComponentInteraction,
-	type MessageComponentInteraction,
-	type ButtonInteraction,
+        createMessageComponentInteraction,
+        type MessageComponentInteraction,
+        type ButtonInteraction,
 	type StringSelectInteraction,
 	type RoleSelectInteraction,
 	type UserSelectInteraction,
@@ -38,11 +38,18 @@ import {
 	type ModalSubmitInteraction,
 } from "../utils/ModalSubmitInteraction.js";
 import {
-	createUserContextMenuInteraction,
-	createMessageContextMenuInteraction,
-	type UserContextMenuInteraction,
-	type MessageContextMenuInteraction,
+        createUserContextMenuInteraction,
+        createMessageContextMenuInteraction,
+        type UserContextMenuInteraction,
+        type MessageContextMenuInteraction,
 } from "../utils/ContextMenuInteraction.js";
+import {
+        getOAuthTokens,
+        getDiscordUser,
+        type OAuthConfig,
+        type OAuthTokens,
+        type DiscordUser,
+} from "../oauth/DiscordOAuth.js";
 
 /** File extensions that are treated as loadable modules when auto-loading. */
 const SUPPORTED_MODULE_EXTENSIONS = new Set([
@@ -164,14 +171,65 @@ export type MiniInteractionNodeHandler = (
 
 /** Web Fetch API compatible request handler for platforms such as Cloudflare Workers. */
 export type MiniInteractionFetchHandler = (
-	request: Request,
+        request: Request,
 ) => Promise<Response>;
+
+/** Context passed to OAuth success handlers and templates. */
+export type DiscordOAuthAuthorizeContext = {
+        tokens: OAuthTokens;
+        user: DiscordUser;
+        state: string | null;
+        request: IncomingMessage;
+        response: ServerResponse;
+};
+
+/** Context provided to templates that only need access to the state value. */
+export type DiscordOAuthStateTemplateContext = {
+        state: string | null;
+};
+
+/** Context provided to templates that display OAuth error messages. */
+export type DiscordOAuthErrorTemplateContext = DiscordOAuthStateTemplateContext & {
+        error: string;
+};
+
+/** Context provided to templates used for successful authorisation messages. */
+export type DiscordOAuthSuccessTemplateContext = DiscordOAuthStateTemplateContext & {
+        user: DiscordUser;
+        tokens: OAuthTokens;
+};
+
+/** Context provided to templates that handle server side failures. */
+export type DiscordOAuthServerErrorTemplateContext = DiscordOAuthStateTemplateContext;
+
+/** Template functions used to render HTML responses during the OAuth flow. */
+export type DiscordOAuthCallbackTemplates = {
+        success: (context: DiscordOAuthSuccessTemplateContext) => string;
+        missingCode: (context: DiscordOAuthStateTemplateContext) => string;
+        oauthError: (context: DiscordOAuthErrorTemplateContext) => string;
+        invalidState: (context: DiscordOAuthStateTemplateContext) => string;
+        serverError: (context: DiscordOAuthServerErrorTemplateContext) => string;
+};
+
+/** Options accepted by {@link MiniInteraction.discordOAuthCallback}. */
+export type DiscordOAuthCallbackOptions = {
+        oauth?: OAuthConfig;
+        onAuthorize?: (context: DiscordOAuthAuthorizeContext) => Promise<void> | void;
+        validateState?: (
+                state: string | null,
+                request: IncomingMessage,
+        ) => Promise<boolean> | boolean;
+        successRedirect?:
+                | string
+                | ((context: DiscordOAuthAuthorizeContext) => string | null | undefined);
+        templates?: Partial<DiscordOAuthCallbackTemplates>;
+};
 
 /**
  * Minimal interface describing a function capable of verifying Discord interaction signatures.
  */
 type VerifyKeyFunction = (
-	message: string | Uint8Array,
+        message: string | Uint8Array,
 	signature: string,
 	timestamp: string,
 	publicKey: string,
@@ -185,18 +243,19 @@ export class MiniInteraction {
 	public readonly publicKey: string;
 	private readonly baseUrl: string;
 	private readonly fetchImpl: typeof fetch;
-	private readonly verifyKeyImpl: VerifyKeyFunction;
-	private readonly commandsDirectory: string | null;
-	private readonly componentsDirectory: string | null;
-	private readonly commands = new Map<string, MiniInteractionCommand>();
-	private readonly componentHandlers = new Map<
-		string,
-		MiniInteractionComponentHandler
-	>();
-	private readonly modalHandlers = new Map<
-		string,
-		MiniInteractionModalHandler
-	>();
+        private readonly verifyKeyImpl: VerifyKeyFunction;
+        private readonly commandsDirectory: string | null;
+        private readonly componentsDirectory: string | null;
+        private readonly commands = new Map<string, MiniInteractionCommand>();
+        private readonly componentHandlers = new Map<
+                string,
+                MiniInteractionComponentHandler
+        >();
+        private readonly modalHandlers = new Map<
+                string,
+                MiniInteractionModalHandler
+        >();
+        private readonly htmlTemplateCache = new Map<string, string>();
 	private commandsLoaded = false;
 	private loadCommandsPromise: Promise<void> | null = null;
 	private componentsLoaded = false;
@@ -751,13 +810,247 @@ export class MiniInteraction {
 	/**
 	 * Convenience alias for {@link createNodeHandler} tailored to Vercel serverless functions.
 	 */
-	createVercelHandler(): MiniInteractionNodeHandler {
-		return this.createNodeHandler();
-	}
+        createVercelHandler(): MiniInteractionNodeHandler {
+                return this.createNodeHandler();
+        }
 
-	/**
-	 * Creates a Fetch API compatible handler for runtimes like Workers or Deno.
-	 */
+        /**
+         * Loads an HTML file and returns a success template that replaces useful placeholders.
+         *
+         * The following placeholders are available in the HTML file:
+         * - `{{username}}`, `{{discriminator}}`, `{{user_id}}`, `{{user_tag}}`
+         * - `{{access_token}}`, `{{refresh_token}}`, `{{token_type}}`, `{{scope}}`, `{{expires_at}}`
+         * - `{{state}}`
+         */
+        connectedOAuthPage(
+                filePath: string,
+        ): DiscordOAuthCallbackTemplates["success"] {
+                const template = this.loadHtmlTemplate(filePath);
+
+                return ({ user, tokens, state }) => {
+                        const discriminator = user.discriminator;
+                        const userTag =
+                                discriminator && discriminator !== "0"
+                                        ? `${user.username}#${discriminator}`
+                                        : user.username;
+
+                        return this.renderHtmlTemplate(template, {
+                                username: user.username,
+                                discriminator,
+                                user_id: user.id,
+                                user_tag: userTag,
+                                access_token: tokens.access_token,
+                                refresh_token: tokens.refresh_token,
+                                token_type: tokens.token_type,
+                                scope: tokens.scope,
+                                expires_at: tokens.expires_at.toString(),
+                                state,
+                        });
+                };
+        }
+
+        /**
+         * Loads an HTML file and returns an error template that can be reused for all failure cases.
+         *
+         * The following placeholders are available in the HTML file:
+         * - `{{error}}`
+         * - `{{state}}`
+         */
+        failedOAuthPage(
+                filePath: string,
+        ): ((context: DiscordOAuthErrorTemplateContext) => string) &
+                ((context: DiscordOAuthStateTemplateContext) => string) {
+                const template = this.loadHtmlTemplate(filePath);
+
+                const renderer = (context: {
+                        error?: string | null;
+                        state: string | null;
+                }) =>
+                        this.renderHtmlTemplate(template, {
+                                error: context.error,
+                                state: context.state,
+                        });
+
+                return renderer as unknown as ((
+                        context: DiscordOAuthErrorTemplateContext,
+                ) => string) & ((context: DiscordOAuthStateTemplateContext) => string);
+        }
+
+        /**
+         * Resolves an HTML template from disk and caches the result for reuse.
+         */
+        private loadHtmlTemplate(filePath: string): string {
+                const resolvedPath = path.isAbsolute(filePath)
+                        ? filePath
+                        : path.join(process.cwd(), filePath);
+
+                const cached = this.htmlTemplateCache.get(resolvedPath);
+                if (cached) {
+                        return cached;
+                }
+
+                if (!existsSync(resolvedPath)) {
+                        throw new Error(
+                                `[MiniInteraction] HTML template not found: ${resolvedPath}`,
+                        );
+                }
+
+                const fileContents = readFileSync(resolvedPath, "utf8");
+                this.htmlTemplateCache.set(resolvedPath, fileContents);
+                return fileContents;
+        }
+
+        /**
+         * Replaces placeholder tokens in a template with escaped HTML values.
+         */
+        private renderHtmlTemplate(
+                template: string,
+                values: Record<string, string | null | undefined>,
+        ): string {
+                return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key: string) => {
+                        const value = values[key];
+                        if (value === undefined || value === null) {
+                                return "";
+                        }
+
+                        return escapeHtml(String(value));
+                });
+        }
+
+        /**
+         * Creates a minimal Discord OAuth callback handler that renders helpful HTML responses.
+         *
+         * This helper keeps the user-side implementation tiny while still exposing hooks for
+         * storing metadata or validating the OAuth state value.
+         */
+        discordOAuthCallback(options: DiscordOAuthCallbackOptions): MiniInteractionNodeHandler {
+                const templates: DiscordOAuthCallbackTemplates = {
+                        ...DEFAULT_DISCORD_OAUTH_TEMPLATES,
+                        ...options.templates,
+                };
+
+                const oauthConfig = resolveOAuthConfig(options.oauth);
+
+                return async (request, response) => {
+                        if (request.method !== "GET") {
+                                response.statusCode = 405;
+                                response.setHeader("content-type", "application/json");
+                                response.end(
+                                        JSON.stringify({
+                                                error: "[MiniInteraction] Only GET is supported",
+                                        }),
+                                );
+                                return;
+                        }
+
+                        let state: string | null = null;
+
+                        try {
+                                const host = request.headers.host ?? "localhost";
+                                const url = new URL(request.url ?? "", `http://${host}`);
+                                const code = url.searchParams.get("code");
+                                state = url.searchParams.get("state");
+                                const error = url.searchParams.get("error");
+
+                                if (error) {
+                                        sendHtml(
+                                                response,
+                                                templates.oauthError({
+                                                        error,
+                                                        state,
+                                                }),
+                                                400,
+                                        );
+                                        return;
+                                }
+
+                                if (!code) {
+                                        sendHtml(
+                                                response,
+                                                templates.missingCode({
+                                                        state,
+                                                }),
+                                                400,
+                                        );
+                                        return;
+                                }
+
+                                if (options.validateState) {
+                                        const isValid = await options.validateState(state, request);
+                                        if (!isValid) {
+                                                sendHtml(
+                                                        response,
+                                                        templates.invalidState({
+                                                                state,
+                                                        }),
+                                                        400,
+                                                );
+                                                return;
+                                        }
+                                }
+
+                                const tokens = await getOAuthTokens(code, oauthConfig);
+                                const user = await getDiscordUser(tokens.access_token);
+
+                                const authorizeContext: DiscordOAuthAuthorizeContext = {
+                                        tokens,
+                                        user,
+                                        state,
+                                        request,
+                                        response,
+                                };
+
+                                if (options.onAuthorize) {
+                                        await options.onAuthorize(authorizeContext);
+                                        if (response.writableEnded || response.headersSent) {
+                                                return;
+                                        }
+                                }
+
+                                if (options.successRedirect) {
+                                        const location =
+                                                typeof options.successRedirect === "function"
+                                                        ? options.successRedirect(authorizeContext)
+                                                        : options.successRedirect;
+
+                                        if (location && !response.headersSent && !response.writableEnded) {
+                                                response.statusCode = 302;
+                                                response.setHeader("location", location);
+                                                response.end();
+                                                return;
+                                        }
+                                }
+
+                                sendHtml(
+                                        response,
+                                        templates.success({
+                                                user,
+                                                tokens,
+                                                state,
+                                        }),
+                                );
+                        } catch (error) {
+                                console.error(
+                                        "[MiniInteraction] Discord OAuth callback failed:",
+                                        error,
+                                );
+
+                                if (!response.headersSent && !response.writableEnded) {
+                                        sendHtml(
+                                                response,
+                                                templates.serverError({
+                                                        state,
+                                                }),
+                                                500,
+                                        );
+                                }
+                        }
+                };
+        }
+
+        /**
+         * Creates a Fetch API compatible handler for runtimes like Workers or Deno.
+         */
 	createFetchHandler(): MiniInteractionFetchHandler {
 		return async (request) => {
 			if (request.method !== "POST") {
@@ -821,9 +1114,9 @@ export class MiniInteraction {
 	/**
 	 * Recursively collects all command module file paths from the target directory.
 	 */
-	private async collectModuleFiles(directory: string): Promise<string[]> {
-		const entries = await readdir(directory, { withFileTypes: true });
-		const files: string[] = [];
+        private async collectModuleFiles(directory: string): Promise<string[]> {
+                const entries = await readdir(directory, { withFileTypes: true });
+                const files: string[] = [];
 
 		for (const entry of entries) {
 			if (entry.name.startsWith(".")) {
@@ -1428,4 +1721,165 @@ export class MiniInteraction {
 			};
 		}
 	}
+}
+
+const DEFAULT_DISCORD_OAUTH_TEMPLATES: DiscordOAuthCallbackTemplates = {
+        success: ({ user }) => {
+                const username = escapeHtml(user.username ?? "Discord User");
+                const discriminator =
+                        user.discriminator && user.discriminator !== "0"
+                                ? `#${escapeHtml(user.discriminator)}`
+                                : "";
+
+                return `<!DOCTYPE html>
+<html>
+<head>
+        <meta charset="utf-8" />
+        <title>Linked Role Connected</title>
+        <style>
+                body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
+                .success { color: #2e7d32; background: #e8f5e9; padding: 20px; border-radius: 10px; margin: 20px 0; }
+                .info { background: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0; }
+                h1 { color: #5865f2; }
+                .user-info { margin: 10px 0; font-size: 18px; }
+        </style>
+</head>
+<body>
+        <h1>✅ Successfully Connected!</h1>
+        <div class="success">
+                <p><strong>Your Discord account has been linked!</strong></p>
+                <div class="user-info">
+                        <p>👤 ${username}${discriminator}</p>
+                </div>
+        </div>
+        <div class="info">
+                <p>Your linked role metadata has been updated.</p>
+                <p>You can now close this window and return to Discord.</p>
+        </div>
+</body>
+</html>`;
+        },
+        missingCode: () => `<!DOCTYPE html>
+<html>
+<head>
+        <meta charset="utf-8" />
+        <title>Missing Authorization Code</title>
+        <style>
+                body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+                .error { color: #d32f2f; background: #ffebee; padding: 15px; border-radius: 5px; }
+        </style>
+</head>
+<body>
+        <h1>Missing Authorization Code</h1>
+        <div class="error">
+                <p>No authorization code was provided.</p>
+        </div>
+</body>
+</html>`,
+        oauthError: ({ error }) => `<!DOCTYPE html>
+<html>
+<head>
+        <meta charset="utf-8" />
+        <title>OAuth Error</title>
+        <style>
+                body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+                .error { color: #d32f2f; background: #ffebee; padding: 15px; border-radius: 5px; }
+        </style>
+</head>
+<body>
+        <h1>OAuth Error</h1>
+        <div class="error">
+                <p>Authorization failed: ${escapeHtml(error)}</p>
+                <p>Please try again.</p>
+        </div>
+</body>
+</html>`,
+        invalidState: () => `<!DOCTYPE html>
+<html>
+<head>
+        <meta charset="utf-8" />
+        <title>Invalid Session</title>
+        <style>
+                body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+                .error { color: #d32f2f; background: #ffebee; padding: 15px; border-radius: 5px; }
+        </style>
+</head>
+<body>
+        <h1>Invalid Session</h1>
+        <div class="error">
+                <p>The provided state value did not match an active session.</p>
+                <p>Please restart the linking process.</p>
+        </div>
+</body>
+</html>`,
+        serverError: () => `<!DOCTYPE html>
+<html>
+<head>
+        <meta charset="utf-8" />
+        <title>Server Error</title>
+        <style>
+                body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+                .error { color: #d32f2f; background: #ffebee; padding: 15px; border-radius: 5px; }
+        </style>
+</head>
+<body>
+        <h1>Server Error</h1>
+        <div class="error">
+                <p>An error occurred while processing your request.</p>
+                <p>Please try again later.</p>
+        </div>
+</body>
+</html>`,
+};
+
+function sendHtml(response: ServerResponse, body: string, statusCode = 200): void {
+        if (response.headersSent || response.writableEnded) {
+                return;
+        }
+
+        response.statusCode = statusCode;
+        response.setHeader("content-type", "text/html; charset=utf-8");
+        response.end(body);
+}
+
+function escapeHtml(value: string): string {
+        return value.replace(/[&<>"']/g, (character) => {
+                switch (character) {
+                        case "&":
+                                return "&amp;";
+                        case "<":
+                                return "&lt;";
+                        case ">":
+                                return "&gt;";
+                        case '"':
+                                return "&quot;";
+                        case "'":
+                                return "&#39;";
+                        default:
+                                return character;
+                }
+        });
+}
+
+function resolveOAuthConfig(provided?: OAuthConfig): OAuthConfig {
+        if (provided) {
+                return provided;
+        }
+
+        const appId =
+                process.env.DISCORD_APPLICATION_ID ?? process.env.DISCORD_CLIENT_ID;
+        const appSecret = process.env.DISCORD_CLIENT_SECRET;
+        const redirectUri = process.env.DISCORD_REDIRECT_URI;
+
+        if (!appId || !appSecret || !redirectUri) {
+                throw new Error(
+                        "[MiniInteraction] Missing OAuth configuration. Provide options.oauth or set DISCORD_APPLICATION_ID, DISCORD_CLIENT_SECRET, and DISCORD_REDIRECT_URI environment variables.",
+                );
+        }
+
+        return {
+                appId,
+                appSecret,
+                redirectUri,
+        };
 }

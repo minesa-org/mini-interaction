@@ -1,14 +1,11 @@
-import type { MiniDataBuilder } from "./MiniDataBuilder.js";
 
 /**
  * Configuration for MiniDatabase backend.
  */
 export interface DatabaseConfig {
-	type: "json" | "mongodb";
-	dataPath?: string; // For JSON backend
-	mongoUri?: string; // For MongoDB backend
-	dbName?: string; // MongoDB database name
-	collectionName?: string; // MongoDB collection name
+        mongoUri: string;
+        dbName: string;
+        collectionName: string;
 }
 
 /**
@@ -17,59 +14,49 @@ export interface DatabaseConfig {
  *
  * @example
  * ```typescript
- * // Using JSON (default)
  * const db = new MiniDatabaseBuilder()
- *   .setType("json")
- *   .setDataPath("./data")
- *   .build();
- *
- * // Using MongoDB
- * const db = new MiniDatabaseBuilder()
- *   .setType("mongodb")
- *   .setMongoUri(process.env.MONGO_URI)
+ *   .useMongoUriFromEnv()
  *   .setDbName("myapp")
  *   .setCollectionName("users")
  *   .build();
  * ```
  */
 export class MiniDatabaseBuilder {
-	private config: DatabaseConfig = {
-		type: "json",
-		dataPath: "./data",
-		dbName: "minidb",
-		collectionName: "data",
-	};
+        private config: DatabaseConfig = {
+                mongoUri: process.env.MONGODB_URI ?? "",
+                dbName: "minidb",
+                collectionName: "data",
+        };
 
-	/**
-	 * Sets the database type (json or mongodb).
-	 */
-	setType(type: "json" | "mongodb"): this {
-		this.config.type = type;
-		return this;
-	}
+        /**
+         * Sets the MongoDB connection URI.
+         */
+        setMongoUri(uri: string): this {
+                this.config.mongoUri = uri;
+                return this;
+        }
 
-	/**
-	 * Sets the data path for JSON backend.
-	 * Default: "./data"
-	 */
-	setDataPath(path: string): this {
-		this.config.dataPath = path;
-		return this;
-	}
+        /**
+         * Reads the MongoDB connection URI from an environment variable.
+         * Defaults to `MONGODB_URI`.
+         */
+        useMongoUriFromEnv(variable = "MONGODB_URI"): this {
+                const value = process.env[variable];
+                if (!value) {
+                        throw new Error(
+                                `[MiniDatabaseBuilder] Environment variable "${variable}" is not set`,
+                        );
+                }
 
-	/**
-	 * Sets the MongoDB connection URI.
-	 */
-	setMongoUri(uri: string): this {
-		this.config.mongoUri = uri;
-		return this;
-	}
+                this.config.mongoUri = value;
+                return this;
+        }
 
-	/**
-	 * Sets the MongoDB database name.
-	 * Default: "minidb"
-	 */
-	setDbName(name: string): this {
+        /**
+         * Sets the MongoDB database name.
+         * Default: "minidb"
+         */
+        setDbName(name: string): this {
 		this.config.dbName = name;
 		return this;
 	}
@@ -93,26 +80,18 @@ export class MiniDatabaseBuilder {
 	/**
 	 * Validates the configuration.
 	 */
-	validate(): { valid: boolean; errors: string[] } {
-		const errors: string[] = [];
+        validate(): { valid: boolean; errors: string[] } {
+                const errors: string[] = [];
 
-		if (this.config.type === "mongodb") {
-			if (!this.config.mongoUri) {
-				errors.push("MongoDB URI is required when using mongodb backend");
-			}
-		}
+                if (!this.config.mongoUri) {
+                        errors.push("MongoDB URI is required");
+                }
 
-		if (this.config.type === "json") {
-			if (!this.config.dataPath) {
-				errors.push("Data path is required when using json backend");
-			}
-		}
-
-		return {
-			valid: errors.length === 0,
-			errors,
-		};
-	}
+                return {
+                        valid: errors.length === 0,
+                        errors,
+                };
+        }
 
 	/**
 	 * Builds and returns the configuration.
