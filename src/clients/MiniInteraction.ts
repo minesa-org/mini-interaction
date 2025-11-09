@@ -213,7 +213,7 @@ export type DiscordOAuthCallbackTemplates = {
 
 /** Options accepted by {@link MiniInteraction.discordOAuthCallback}. */
 export type DiscordOAuthCallbackOptions = {
-        oauth: OAuthConfig;
+        oauth?: OAuthConfig;
         onAuthorize?: (context: DiscordOAuthAuthorizeContext) => Promise<void> | void;
         validateState?: (
                 state: string | null,
@@ -825,6 +825,8 @@ export class MiniInteraction {
                         ...options.templates,
                 };
 
+                const oauthConfig = resolveOAuthConfig(options.oauth);
+
                 return async (request, response) => {
                         if (request.method !== "GET") {
                                 response.statusCode = 405;
@@ -883,7 +885,7 @@ export class MiniInteraction {
                                         }
                                 }
 
-                                const tokens = await getOAuthTokens(code, options.oauth);
+                                const tokens = await getOAuthTokens(code, oauthConfig);
                                 const user = await getDiscordUser(tokens.access_token);
 
                                 const authorizeContext: DiscordOAuthAuthorizeContext = {
@@ -1753,4 +1755,27 @@ function escapeHtml(value: string): string {
                                 return character;
                 }
         });
+}
+
+function resolveOAuthConfig(provided?: OAuthConfig): OAuthConfig {
+        if (provided) {
+                return provided;
+        }
+
+        const appId =
+                process.env.DISCORD_APPLICATION_ID ?? process.env.DISCORD_CLIENT_ID;
+        const appSecret = process.env.DISCORD_CLIENT_SECRET;
+        const redirectUri = process.env.DISCORD_REDIRECT_URI;
+
+        if (!appId || !appSecret || !redirectUri) {
+                throw new Error(
+                        "[MiniInteraction] Missing OAuth configuration. Provide options.oauth or set DISCORD_APPLICATION_ID, DISCORD_CLIENT_SECRET, and DISCORD_REDIRECT_URI environment variables.",
+                );
+        }
+
+        return {
+                appId,
+                appSecret,
+                redirectUri,
+        };
 }
