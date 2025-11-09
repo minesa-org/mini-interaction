@@ -88,3 +88,21 @@ export type {
 	MiniComponentMessageActionRow,
 } from "./types/ComponentTypes.js";
 export * from "./builders/index.js";
+export { MiniDataBuilder } from "./database/MiniDataBuilder.js";
+export type { DataField } from "./database/MiniDataBuilder.js";
+export { MiniDatabaseBuilder } from "./database/MiniDatabaseBuilder.js";
+export type { DatabaseConfig } from "./database/MiniDatabaseBuilder.js";
+export { MiniDatabase } from "./database/MiniDatabase.js";
+export {
+	generateOAuthUrl,
+	getOAuthTokens,
+	refreshAccessToken,
+	getDiscordUser,
+	ensureValidToken,
+} from "./oauth/DiscordOAuth.js";
+export type {
+	OAuthConfig,
+	OAuthTokens,
+	DiscordUser,
+} from "./oauth/DiscordOAuth.js";
+export { OAuthTokenStorage } from "./oauth/OAuthTokenStorage.js";
