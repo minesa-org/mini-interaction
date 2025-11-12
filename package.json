@@ -41,8 +41,7 @@
 	"homepage": "https://github.com/minesa-org/mini-interaction#readme",
 	"dependencies": {
 		"discord-api-types": "^0.38.32",
-		"discord-interactions": "^4.4.0",
-		"dotenv": "^17.2.3"
+		"discord-interactions": "^4.4.0"
 	},
 	"devDependencies": {
 		"@types/node": "^24.10.0",
