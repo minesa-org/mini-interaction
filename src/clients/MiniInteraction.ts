@@ -241,7 +241,6 @@ type VerifyKeyFunction = (
 export class MiniInteraction {
 	public readonly applicationId: string;
 	public readonly publicKey: string;
-	private readonly baseUrl: string;
 	private readonly fetchImpl: typeof fetch;
         private readonly verifyKeyImpl: VerifyKeyFunction;
         private readonly commandsDirectory: string | null;
@@ -289,7 +288,6 @@ export class MiniInteraction {
 
 		this.applicationId = applicationId;
 		this.publicKey = publicKey;
-		this.baseUrl = DISCORD_BASE_URL;
 		this.fetchImpl = fetchImpl;
 		this.verifyKeyImpl = verifyKeyImplementation ?? verifyKey;
 		this.commandsDirectory =
@@ -589,7 +587,7 @@ export class MiniInteraction {
 			);
 		}
 
-		const url = `${this.baseUrl}/applications/${this.applicationId}/commands`;
+		const url = `${DISCORD_BASE_URL}/applications/${this.applicationId}/commands`;
 
 		const response = await this.fetchImpl(url, {
 			method: "PUT",
@@ -630,7 +628,7 @@ export class MiniInteraction {
 			);
 		}
 
-		const url = `${this.baseUrl}/applications/${this.applicationId}/role-connections/metadata`;
+		const url = `${DISCORD_BASE_URL}/applications/${this.applicationId}/role-connections/metadata`;
 
 		const response = await this.fetchImpl(url, {
 			method: "PUT",
@@ -730,7 +728,8 @@ export class MiniInteraction {
 	}
 
 	/**
-	 * Creates a Node.js style request handler that validates and processes interactions.
+	 * Creates a Node.js style request handler compatible with Express, Next.js API routes,
+	 * Vercel serverless functions, and any runtime that expects a `(req, res)` listener.
 	 */
 	createNodeHandler(): MiniInteractionNodeHandler {
 		return (request, response) => {
@@ -799,20 +798,6 @@ export class MiniInteraction {
 			});
 		};
 	}
-
-	/**
-	 * Alias for {@link createNodeHandler} for frameworks expecting a listener function.
-	 */
-	createNodeListener(): MiniInteractionNodeHandler {
-		return this.createNodeHandler();
-	}
-
-	/**
-	 * Convenience alias for {@link createNodeHandler} tailored to Vercel serverless functions.
-	 */
-        createVercelHandler(): MiniInteractionNodeHandler {
-                return this.createNodeHandler();
-        }
 
         /**
          * Loads an HTML file and returns a success template that replaces useful placeholders.
