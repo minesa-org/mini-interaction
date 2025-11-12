@@ -12,6 +12,7 @@
 	],
 	"scripts": {
 		"build": "tsc --project tsconfig.json",
+		"postbuild": "tsx scripts/postbuild.ts",
 		"typecheck": "tsc --noEmit",
 		"prepare": "npm run build",
 		"patch": "npm version patch",
@@ -46,6 +47,7 @@
 	"devDependencies": {
 		"@types/node": "^24.10.0",
 		"ts-node": "^10.9.2",
+		"tsx": "^4.20.6",
 		"typescript": "^5.9.3"
 	}
 }
