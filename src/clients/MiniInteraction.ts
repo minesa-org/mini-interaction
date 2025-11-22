@@ -64,12 +64,13 @@ const SUPPORTED_MODULE_EXTENSIONS = new Set([
 
 /** Configuration parameters for the MiniInteraction client. */
 export type MiniInteractionOptions = {
-	applicationId: string;
-	publicKey: string;
-	commandsDirectory?: string | false;
-	componentsDirectory?: string | false;
-	fetchImplementation?: typeof fetch;
-	verifyKeyImplementation?: VerifyKeyFunction;
+        applicationId: string;
+        publicKey: string;
+        commandsDirectory?: string | false;
+        componentsDirectory?: string | false;
+        utilsDirectory?: string | false;
+        fetchImplementation?: typeof fetch;
+        verifyKeyImplementation?: VerifyKeyFunction;
 };
 
 /** Payload structure for role connection metadata registration. */
@@ -267,12 +268,13 @@ type VerifyKeyFunction = (
  */
 export class MiniInteraction {
 	public readonly applicationId: string;
-	public readonly publicKey: string;
-	private readonly fetchImpl: typeof fetch;
+        public readonly publicKey: string;
+        private readonly fetchImpl: typeof fetch;
         private readonly verifyKeyImpl: VerifyKeyFunction;
         private readonly commandsDirectory: string | null;
         private readonly componentsDirectory: string | null;
-        private readonly commands = new Map<string, RegisteredMiniInteractionCommand>();
+        public readonly utilsDirectory: string | null;
+        private readonly commands = new Map<string, MiniInteractionCommand>();
         private readonly componentHandlers = new Map<
                 string,
                 MiniInteractionComponentHandler
@@ -283,21 +285,24 @@ export class MiniInteraction {
         >();
         private readonly htmlTemplateCache = new Map<string, string>();
 	private commandsLoaded = false;
-	private loadCommandsPromise: Promise<void> | null = null;
-	private componentsLoaded = false;
-	private loadComponentsPromise: Promise<void> | null = null;
+        private loadCommandsPromise: Promise<void> | null = null;
+        private componentsLoaded = false;
+        private loadComponentsPromise: Promise<void> | null = null;
+        private registerCommandsPromise: Promise<unknown> | null = null;
+        private registerCommandsSignature: string | null = null;
 
 	/**
 	 * Creates a new MiniInteraction client with optional command auto-loading and custom runtime hooks.
 	 */
-        constructor({
-                applicationId,
-                publicKey,
-                commandsDirectory,
-                componentsDirectory,
-		fetchImplementation,
-		verifyKeyImplementation,
-	}: MiniInteractionOptions) {
+                constructor({
+                        applicationId,
+                        publicKey,
+                        commandsDirectory,
+                        componentsDirectory,
+                        utilsDirectory,
+                        fetchImplementation,
+                        verifyKeyImplementation,
+                }: MiniInteractionOptions) {
 		if (!applicationId) {
 			throw new Error("[MiniInteraction] applicationId is required");
 		}
@@ -317,14 +322,18 @@ export class MiniInteraction {
 		this.publicKey = publicKey;
 		this.fetchImpl = fetchImpl;
 		this.verifyKeyImpl = verifyKeyImplementation ?? verifyKey;
-		this.commandsDirectory =
-			commandsDirectory === false
-				? null
-				: this.resolveCommandsDirectory(commandsDirectory);
+                this.commandsDirectory =
+                        commandsDirectory === false
+                                ? null
+                                : this.resolveCommandsDirectory(commandsDirectory);
                 this.componentsDirectory =
                         componentsDirectory === false
                                 ? null
                                 : this.resolveComponentsDirectory(componentsDirectory);
+                this.utilsDirectory =
+                        utilsDirectory === false
+                                ? null
+                                : this.resolveUtilsDirectory(utilsDirectory);
         }
 
         private normalizeCommandData(data: MiniInteractionCommand["data"]): CommandDataPayload {
@@ -595,49 +604,85 @@ export class MiniInteraction {
 	 * @param botToken - The bot token authorising the registration request.
 	 * @param commands - Optional command list to register instead of auto-loaded commands.
 	 */
-	async registerCommands(
-		botToken: string,
-		commands?: (
-			| RESTPostAPIChatInputApplicationCommandsJSONBody
-			| RESTPostAPIContextMenuApplicationCommandsJSONBody
-		)[],
-	): Promise<unknown> {
-		if (!botToken) {
-			throw new Error("[MiniInteraction] botToken is required");
-		}
+        async registerCommands(
+                botToken: string,
+                commands?: (
+                        | RESTPostAPIChatInputApplicationCommandsJSONBody
+                        | RESTPostAPIContextMenuApplicationCommandsJSONBody
+                )[],
+        ): Promise<unknown> {
+                if (!botToken) {
+                        throw new Error("[MiniInteraction] botToken is required");
+                }
 
-		let resolvedCommands = commands;
-		if (!resolvedCommands || resolvedCommands.length === 0) {
-			await this.ensureCommandsLoaded();
-			resolvedCommands = this.listCommandData();
-		}
+                let resolvedCommands = commands;
+                if (!resolvedCommands || resolvedCommands.length === 0) {
+                        await this.ensureCommandsLoaded();
+                        resolvedCommands = this.listCommandData();
+                }
 
-		if (!Array.isArray(resolvedCommands) || resolvedCommands.length === 0) {
-			throw new Error(
-				"[MiniInteraction] commands must be a non-empty array payload",
-			);
-		}
+                if (!Array.isArray(resolvedCommands) || resolvedCommands.length === 0) {
+                        throw new Error(
+                                "[MiniInteraction] commands must be a non-empty array payload",
+                        );
+                }
 
-		const url = `${DISCORD_BASE_URL}/applications/${this.applicationId}/commands`;
+                const signature = JSON.stringify(resolvedCommands);
+                if (this.registerCommandsPromise) {
+                        if (this.registerCommandsSignature === signature) {
+                                console.warn(
+                                        "[MiniInteraction] Command registration already in progress. Reusing the in-flight request.",
+                                );
+                                return this.registerCommandsPromise;
+                        }
 
-		const response = await this.fetchImpl(url, {
-			method: "PUT",
-			headers: {
-				Authorization: `Bot ${botToken}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify(resolvedCommands),
-		});
+                        console.warn(
+                                "[MiniInteraction] Command registration already in progress. Waiting for it to finish before continuing.",
+                        );
+                        await this.registerCommandsPromise.catch(() => undefined);
+                }
 
-		if (!response.ok) {
-			const errorBody = await response.text();
-			throw new Error(
-				`[MiniInteraction] Failed to register commands: [${response.status}] ${errorBody}`,
-			);
-		}
+                const url = `${DISCORD_BASE_URL}/applications/${this.applicationId}/commands`;
 
-		return response.json();
-	}
+                const requestPromise = (async () => {
+                        try {
+                                const response = await this.fetchImpl(url, {
+                                        method: "PUT",
+                                        headers: {
+                                                Authorization: `Bot ${botToken}`,
+                                                "Content-Type": "application/json",
+                                        },
+                                        body: JSON.stringify(resolvedCommands),
+                                });
+
+                                if (!response.ok) {
+                                        const errorBody = await response.text();
+                                        throw new Error(
+                                                `[MiniInteraction] Failed to register commands: [${response.status}] ${errorBody}`,
+                                        );
+                                }
+
+                                return response.json();
+                        } catch (error) {
+                                const message = error instanceof Error ? error.message : String(error);
+                                if (message.startsWith("[MiniInteraction]")) {
+                                        throw error;
+                                }
+
+                                throw new Error(
+                                        `[MiniInteraction] Failed to register commands: ${message}`,
+                                );
+                        }
+                })();
+
+                this.registerCommandsSignature = signature;
+                this.registerCommandsPromise = requestPromise.finally(() => {
+                        this.registerCommandsPromise = null;
+                        this.registerCommandsSignature = null;
+                });
+
+                return this.registerCommandsPromise;
+        }
 
 	/**
 	 * Registers role connection metadata with Discord's REST API.
@@ -1513,9 +1558,16 @@ export class MiniInteraction {
 	/**
 	 * Resolves the absolute components directory path from configuration.
 	 */
-	private resolveComponentsDirectory(componentsDirectory?: string): string {
-		return this.resolveDirectory("components", componentsDirectory);
-	}
+        private resolveComponentsDirectory(componentsDirectory?: string): string {
+                return this.resolveDirectory("components", componentsDirectory);
+        }
+
+        /**
+         * Resolves the absolute utilities directory path from configuration.
+         */
+        private resolveUtilsDirectory(utilsDirectory?: string): string {
+                return this.resolveDirectory("utils", utilsDirectory);
+        }
 
 	/**
 	 * Resolves a directory relative to the project "src" or "dist" folders with optional overrides.
