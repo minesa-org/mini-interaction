@@ -7,8 +7,9 @@ export {
 	IntegrationType,
 } from "./commands/CommandBuilder.js";
 export {
-	UserCommandBuilder,
-	MessageCommandBuilder,
+        UserCommandBuilder,
+        MessageCommandBuilder,
+        AppCommandBuilder,
 } from "./commands/ContextMenuCommandBuilder.js";
 export type {
 	AttachmentOptionBuilder,
@@ -28,11 +29,12 @@ export {
 export type {
 	CommandInteraction,
 	MentionableOption,
-	ResolvedUserOption,
+        ResolvedUserOption,
 } from "./utils/CommandInteractionOptions.js";
 export type {
-	UserContextMenuInteraction,
-	MessageContextMenuInteraction,
+        UserContextMenuInteraction,
+        MessageContextMenuInteraction,
+        AppCommandInteraction,
 } from "./utils/ContextMenuInteraction.js";
 export type {
         MiniInteractionFetchHandler,
@@ -50,11 +52,12 @@ export type {
         DiscordOAuthVerificationPageOptions,
 } from "./clients/MiniInteraction.js";
 export type {
-	MiniInteractionCommand,
-	SlashCommandHandler,
-	UserCommandHandler,
-	MessageCommandHandler,
-	CommandHandler,
+        MiniInteractionCommand,
+        SlashCommandHandler,
+        UserCommandHandler,
+        MessageCommandHandler,
+        AppCommandHandler,
+        CommandHandler,
 } from "./types/Commands.js";
 export type {
 	MiniInteractionComponent,

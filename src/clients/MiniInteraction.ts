@@ -4,18 +4,20 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type {
+        APIApplicationCommandInteraction,
         APIChatInputApplicationCommandInteraction,
         APIMessageComponentInteraction,
         APIModalSubmitInteraction,
 } from "discord-api-types/v10";
 import {
-	APIInteraction,
-	APIInteractionResponse,
-	ApplicationCommandType,
-	InteractionResponseType,
-	InteractionType,
-	RESTPostAPIChatInputApplicationCommandsJSONBody,
-	RESTPostAPIContextMenuApplicationCommandsJSONBody,
+        APIInteraction,
+        APIInteractionResponse,
+        ApplicationCommandType,
+        InteractionResponseType,
+        InteractionType,
+        RESTPostAPIChatInputApplicationCommandsJSONBody,
+        RESTPostAPIContextMenuApplicationCommandsJSONBody,
+        RESTPostAPIPrimaryEntryPointApplicationCommandJSONBody,
 } from "discord-api-types/v10";
 import { verifyKey } from "discord-interactions";
 
@@ -34,14 +36,16 @@ import {
 	type MentionableSelectInteraction,
 } from "../utils/MessageComponentInteraction.js";
 import {
-	createModalSubmitInteraction,
-	type ModalSubmitInteraction,
+        createModalSubmitInteraction,
+        type ModalSubmitInteraction,
 } from "../utils/ModalSubmitInteraction.js";
 import {
         createUserContextMenuInteraction,
         createMessageContextMenuInteraction,
+        createAppCommandInteraction,
         type UserContextMenuInteraction,
         type MessageContextMenuInteraction,
+        type AppCommandInteraction,
 } from "../utils/ContextMenuInteraction.js";
 import {
         generateOAuthUrl,
@@ -149,7 +153,8 @@ export type MiniInteractionHandler =
 
 type CommandDataPayload =
         | RESTPostAPIChatInputApplicationCommandsJSONBody
-        | RESTPostAPIContextMenuApplicationCommandsJSONBody;
+        | RESTPostAPIContextMenuApplicationCommandsJSONBody
+        | RESTPostAPIPrimaryEntryPointApplicationCommandJSONBody;
 
 type RegisteredMiniInteractionCommand = Omit<MiniInteractionCommand, "data"> & {
         data: CommandDataPayload;
@@ -274,7 +279,7 @@ export class MiniInteraction {
         private readonly commandsDirectory: string | null;
         private readonly componentsDirectory: string | null;
         public readonly utilsDirectory: string | null;
-        private readonly commands = new Map<string, MiniInteractionCommand>();
+        private readonly commands = new Map<string, RegisteredMiniInteractionCommand>();
         private readonly componentHandlers = new Map<
                 string,
                 MiniInteractionComponentHandler
@@ -588,15 +593,12 @@ export class MiniInteraction {
 		return this;
 	}
 
-	/**
-	 * Lists the raw command data payloads for registration with Discord.
-	 */
-	listCommandData(): (
-		| RESTPostAPIChatInputApplicationCommandsJSONBody
-		| RESTPostAPIContextMenuApplicationCommandsJSONBody
-	)[] {
-		return Array.from(this.commands.values(), (command) => command.data);
-	}
+        /**
+         * Lists the raw command data payloads for registration with Discord.
+         */
+        listCommandData(): CommandDataPayload[] {
+                return Array.from(this.commands.values(), (command) => command.data);
+        }
 
 	/**
 	 * Registers commands with Discord's REST API.
@@ -606,10 +608,7 @@ export class MiniInteraction {
 	 */
         async registerCommands(
                 botToken: string,
-                commands?: (
-                        | RESTPostAPIChatInputApplicationCommandsJSONBody
-                        | RESTPostAPIContextMenuApplicationCommandsJSONBody
-                )[],
+                commands?: CommandDataPayload[],
         ): Promise<unknown> {
                 if (!botToken) {
                         throw new Error("[MiniInteraction] botToken is required");
@@ -1788,8 +1787,8 @@ export class MiniInteraction {
 	): Promise<MiniInteractionHandlerResult> {
 		await this.ensureCommandsLoaded();
 
-		const commandInteraction =
-			interaction as APIChatInputApplicationCommandInteraction;
+                const commandInteraction =
+                        interaction as APIApplicationCommandInteraction;
 
 		if (!commandInteraction.data || !commandInteraction.data.name) {
 			return {
@@ -1818,28 +1817,40 @@ export class MiniInteraction {
 			let resolvedResponse: APIInteractionResponse | null = null;
 
 			// Check if it's a chat input (slash) command
-			if (
-				commandInteraction.data.type ===
-				ApplicationCommandType.ChatInput
-			) {
-				const interactionWithHelpers =
-					createCommandInteraction(commandInteraction);
-				response = await command.handler(interactionWithHelpers as any);
-				resolvedResponse =
-					response ?? interactionWithHelpers.getResponse();
-			} else if (
-				commandInteraction.data.type === ApplicationCommandType.User
-			) {
+                        if (
+                                commandInteraction.data.type ===
+                                ApplicationCommandType.ChatInput
+                        ) {
+                                const interactionWithHelpers =
+                                        createCommandInteraction(
+                                                commandInteraction as APIChatInputApplicationCommandInteraction,
+                                        );
+                                response = await command.handler(interactionWithHelpers as any);
+                                resolvedResponse =
+                                        response ?? interactionWithHelpers.getResponse();
+                        } else if (
+                                commandInteraction.data.type === ApplicationCommandType.User
+                        ) {
 				// User context menu command
 				const interactionWithHelpers = createUserContextMenuInteraction(
 					commandInteraction as any,
 				);
-				response = await command.handler(interactionWithHelpers as any);
-				resolvedResponse =
-					response ?? interactionWithHelpers.getResponse();
-			} else if (
-				commandInteraction.data.type === ApplicationCommandType.Message
-			) {
+                                response = await command.handler(interactionWithHelpers as any);
+                                resolvedResponse =
+                                        response ?? interactionWithHelpers.getResponse();
+                        } else if (
+                                commandInteraction.data.type ===
+                                ApplicationCommandType.PrimaryEntryPoint
+                        ) {
+                                const interactionWithHelpers = createAppCommandInteraction(
+                                        commandInteraction as AppCommandInteraction,
+                                );
+                                response = await command.handler(interactionWithHelpers as any);
+                                resolvedResponse =
+                                        response ?? interactionWithHelpers.getResponse();
+                        } else if (
+                                commandInteraction.data.type === ApplicationCommandType.Message
+                        ) {
 				// Message context menu command
 				const interactionWithHelpers =
 					createMessageContextMenuInteraction(

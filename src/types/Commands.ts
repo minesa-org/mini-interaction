@@ -1,13 +1,15 @@
 import type {
-	APIInteractionResponse,
-	RESTPostAPIChatInputApplicationCommandsJSONBody,
-	RESTPostAPIContextMenuApplicationCommandsJSONBody,
+        APIInteractionResponse,
+        RESTPostAPIChatInputApplicationCommandsJSONBody,
+        RESTPostAPIContextMenuApplicationCommandsJSONBody,
+        RESTPostAPIPrimaryEntryPointApplicationCommandJSONBody,
 } from "discord-api-types/v10";
 
 import type { CommandInteraction } from "../utils/CommandInteractionOptions.js";
 import type {
-	UserContextMenuInteraction,
-	MessageContextMenuInteraction,
+        UserContextMenuInteraction,
+        MessageContextMenuInteraction,
+        AppCommandInteraction,
 } from "../utils/ContextMenuInteraction.js";
 import type {
         MiniInteractionComponent,
@@ -17,6 +19,7 @@ import type { CommandBuilder } from "../commands/CommandBuilder.js";
 import type {
         MessageCommandBuilder,
         UserCommandBuilder,
+        AppCommandBuilder,
 } from "../commands/ContextMenuCommandBuilder.js";
 
 /** Handler signature for slash command executions within MiniInteraction. */
@@ -31,23 +34,31 @@ export type UserCommandHandler = (
 
 /** Handler signature for message context menu command executions within MiniInteraction. */
 export type MessageCommandHandler = (
-	interaction: MessageContextMenuInteraction,
+        interaction: MessageContextMenuInteraction,
+) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
+
+/** Handler signature for primary entry point command executions within MiniInteraction. */
+export type AppCommandHandler = (
+        interaction: AppCommandInteraction,
 ) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
 
 /** Union of all command handler types. */
 export type CommandHandler =
-	| SlashCommandHandler
-	| UserCommandHandler
-	| MessageCommandHandler;
+        | SlashCommandHandler
+        | UserCommandHandler
+        | MessageCommandHandler
+        | AppCommandHandler;
 
 /** Structure representing a slash command definition and its runtime handler. */
 export type MiniInteractionCommand = {
         data:
                 | RESTPostAPIChatInputApplicationCommandsJSONBody
                 | RESTPostAPIContextMenuApplicationCommandsJSONBody
+                | RESTPostAPIPrimaryEntryPointApplicationCommandJSONBody
                 | CommandBuilder
                 | UserCommandBuilder
-                | MessageCommandBuilder;
+                | MessageCommandBuilder
+                | AppCommandBuilder;
         handler: CommandHandler;
         /**
          * Optional array of component handlers related to this command.

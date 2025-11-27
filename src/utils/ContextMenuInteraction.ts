@@ -1,23 +1,24 @@
 import {
 	InteractionResponseType,
 	type APIInteractionResponse,
-	type APIInteractionResponseCallbackData,
-	type APIInteractionResponseChannelMessageWithSource,
-	type APIInteractionResponseDeferredChannelMessageWithSource,
-	type APIInteractionResponseUpdateMessage,
-	type APIMessage,
-	type APIMessageApplicationCommandInteraction,
-	type APIModalInteractionResponse,
-	type APIModalInteractionResponseCallbackData,
-	type APIUser,
-	type APIUserApplicationCommandInteraction,
+        type APIInteractionResponseCallbackData,
+        type APIInteractionResponseChannelMessageWithSource,
+        type APIInteractionResponseDeferredChannelMessageWithSource,
+        type APIInteractionResponseUpdateMessage,
+        type APIMessage,
+        type APIMessageApplicationCommandInteraction,
+        type APIModalInteractionResponse,
+        type APIModalInteractionResponseCallbackData,
+        type APIPrimaryEntryPointCommandInteraction,
+        type APIUser,
+        type APIUserApplicationCommandInteraction,
 } from "discord-api-types/v10";
 
 import {
 	DeferReplyOptions,
-	InteractionMessageData,
-	normaliseInteractionMessageData,
-	normaliseMessageFlags,
+        InteractionMessageData,
+        normaliseInteractionMessageData,
+        normaliseMessageFlags,
 } from "./interactionMessageHelpers.js";
 
 /**
@@ -58,11 +59,18 @@ export type UserContextMenuInteraction =
  * Message context menu interaction with helper methods.
  */
 export type MessageContextMenuInteraction =
-	APIMessageApplicationCommandInteraction &
-		ContextMenuInteractionHelpers & {
-			/** Resolved message targeted by this message context menu command. */
-			targetMessage?: APIMessage;
-		};
+        APIMessageApplicationCommandInteraction &
+                ContextMenuInteractionHelpers & {
+                        /** Resolved message targeted by this message context menu command. */
+                        targetMessage?: APIMessage;
+                };
+
+/**
+ * Primary entry point interaction with helper methods.
+ */
+export type AppCommandInteraction =
+        APIPrimaryEntryPointCommandInteraction &
+                ContextMenuInteractionHelpers;
 
 function createContextMenuInteractionHelpers(): ContextMenuInteractionHelpers {
 	let capturedResponse: APIInteractionResponse | null = null;
@@ -189,11 +197,23 @@ export function createUserContextMenuInteraction(
  * @returns A helper-augmented interaction object.
  */
 export function createMessageContextMenuInteraction(
-	interaction: APIMessageApplicationCommandInteraction,
+        interaction: APIMessageApplicationCommandInteraction,
 ): MessageContextMenuInteraction {
-	return Object.assign(interaction, createContextMenuInteractionHelpers(), {
-		targetMessage: resolveTargetMessage(interaction),
-	});
+        return Object.assign(interaction, createContextMenuInteractionHelpers(), {
+                targetMessage: resolveTargetMessage(interaction),
+        });
+}
+
+/**
+ * Wraps a raw primary entry point interaction with helper methods.
+ *
+ * @param interaction - The raw primary entry point interaction payload from Discord.
+ * @returns A helper-augmented interaction object.
+ */
+export function createAppCommandInteraction(
+        interaction: APIPrimaryEntryPointCommandInteraction,
+): AppCommandInteraction {
+        return Object.assign(interaction, createContextMenuInteractionHelpers());
 }
 
 function resolveTargetMessage(

@@ -1,39 +1,50 @@
 import {
-	ApplicationCommandType,
-	type LocalizationMap,
-	type Permissions,
-	type RESTPostAPIContextMenuApplicationCommandsJSONBody,
+        ApplicationCommandType,
+        type LocalizationMap,
+        type Permissions,
+        type RESTPostAPIContextMenuApplicationCommandsJSONBody,
+        type RESTPostAPIPrimaryEntryPointApplicationCommandJSONBody,
 } from "discord-api-types/v10";
 
 import { CommandContext, IntegrationType } from "./CommandBuilder.js";
 
 /**
- * Base data structure for context menu commands.
+ * Supported non-chat command types.
  */
-type ContextMenuCommandData = Partial<
-	Omit<
-		RESTPostAPIContextMenuApplicationCommandsJSONBody,
-		"contexts" | "integration_types" | "type"
-	>
+type NonChatCommandType =
+        | ApplicationCommandType.User
+        | ApplicationCommandType.Message
+        | ApplicationCommandType.PrimaryEntryPoint;
+
+type NonChatCommandPayload<T extends NonChatCommandType> =
+        T extends ApplicationCommandType.PrimaryEntryPoint
+                ? RESTPostAPIPrimaryEntryPointApplicationCommandJSONBody
+                : RESTPostAPIContextMenuApplicationCommandsJSONBody;
+
+/**
+ * Base data structure for context menu and primary entry point commands.
+ */
+type ContextMenuCommandData<T extends NonChatCommandType> = Partial<
+        Omit<NonChatCommandPayload<T>, "contexts" | "integration_types" | "type">
 > & {
-	type: ApplicationCommandType.User | ApplicationCommandType.Message;
-	contexts?: CommandContext[] | null;
-	integration_types?: IntegrationType[];
+        type: T;
+        contexts?: CommandContext[] | null;
+        integration_types?: IntegrationType[];
 };
 
 /**
  * Base builder for context menu commands (User and Message commands).
  */
 abstract class BaseContextMenuCommandBuilder<
-	T extends ApplicationCommandType.User | ApplicationCommandType.Message,
+        T extends NonChatCommandType,
 > {
-	protected readonly data: ContextMenuCommandData;
+        protected readonly data: ContextMenuCommandData<T>;
 
-	constructor(type: T) {
-		this.data = {
-			type,
-		};
-	}
+        constructor(type: T) {
+                this.data = {
+                        type,
+                } as ContextMenuCommandData<T>;
+        }
 
 	/**
 	 * Sets the command name.
@@ -104,46 +115,46 @@ abstract class BaseContextMenuCommandBuilder<
 	/**
 	 * Produces the final REST payload for the configured command.
 	 */
-	toJSON(): RESTPostAPIContextMenuApplicationCommandsJSONBody {
-		const { name, type } = this.data;
-		if (!name) {
-			throw new Error("Context menu command name has not been set");
+        toJSON(): NonChatCommandPayload<T> {
+                const { name, type } = this.data;
+                if (!name) {
+                        throw new Error("Context menu command name has not been set");
 		}
 
 		const contexts = this.data.contexts;
 		const integrationTypes = this.data.integration_types;
 
-		return {
-			...this.data,
-			name,
-			type,
+                return {
+                        ...this.data,
+                        name,
+                        type,
 			contexts:
 				contexts === null
 					? null
 					: Array.isArray(contexts)
 					? [...contexts]
 					: undefined,
-			integration_types: Array.isArray(integrationTypes)
-				? [...integrationTypes]
-				: integrationTypes ?? undefined,
-		} as RESTPostAPIContextMenuApplicationCommandsJSONBody;
-	}
+                        integration_types: Array.isArray(integrationTypes)
+                                ? [...integrationTypes]
+                                : integrationTypes ?? undefined,
+                } as NonChatCommandPayload<T>;
+        }
 
 	/**
 	 * Allows the builder to be coerced into its JSON payload automatically.
 	 */
-	valueOf(): RESTPostAPIContextMenuApplicationCommandsJSONBody {
-		return this.toJSON();
-	}
+        valueOf(): NonChatCommandPayload<T> {
+                return this.toJSON();
+        }
 
-	/**
-	 * Formats the command as JSON when inspected in Node.js runtimes.
-	 */
-	[Symbol.for(
-		"nodejs.util.inspect.custom",
-	)](): RESTPostAPIContextMenuApplicationCommandsJSONBody {
-		return this.toJSON();
-	}
+        /**
+         * Formats the command as JSON when inspected in Node.js runtimes.
+         */
+        [Symbol.for(
+                "nodejs.util.inspect.custom",
+        )](): NonChatCommandPayload<T> {
+                return this.toJSON();
+        }
 }
 
 /**
@@ -175,8 +186,17 @@ export class UserCommandBuilder extends BaseContextMenuCommandBuilder<Applicatio
  * ```
  */
 export class MessageCommandBuilder extends BaseContextMenuCommandBuilder<ApplicationCommandType.Message> {
-	constructor() {
-		super(ApplicationCommandType.Message);
-	}
+        constructor() {
+                super(ApplicationCommandType.Message);
+        }
+}
+
+/**
+ * Builder for Primary Entry Point commands.
+ */
+export class AppCommandBuilder extends BaseContextMenuCommandBuilder<ApplicationCommandType.PrimaryEntryPoint> {
+        constructor() {
+                super(ApplicationCommandType.PrimaryEntryPoint);
+        }
 }
 
