@@ -553,16 +553,25 @@ export interface CommandInteraction
 		operation: () => Promise<T>,
 		deferOptions?: DeferReplyOptions,
 	): Promise<T>;
+	canRespond?(interactionId: string): boolean;
+	trackResponse?(interactionId: string, token: string, state: 'responded' | 'deferred'): void;
+	logTiming?(interactionId: string, operation: string, startTime: number, success: boolean): void;
 }
 
 /**
  * Wraps a raw application command interaction with helper methods and option resolvers.
  *
  * @param interaction - The raw interaction payload from Discord.
+ * @param helpers - Optional helper methods for state management and logging.
  * @returns A helper-augmented interaction object.
  */
 export function createCommandInteraction(
 	interaction: APIChatInputApplicationCommandInteraction,
+	helpers?: {
+		canRespond?: (interactionId: string) => boolean;
+		trackResponse?: (interactionId: string, token: string, state: 'responded' | 'deferred') => void;
+		logTiming?: (interactionId: string, operation: string, startTime: number, success: boolean) => void;
+	}
 ): CommandInteraction {
 	const options = new CommandInteractionOptionResolver(
 		interaction.data.options,
@@ -651,10 +660,24 @@ export function createCommandInteraction(
 			return capturedResponse;
 		},
 		reply(data) {
-			return createMessageResponse(
+			// Validate interaction can respond
+			if (!this.canRespond?.(this.id)) {
+				throw new Error('Interaction cannot respond: already responded or expired');
+			}
+
+			const startTime = Date.now();
+			const response = createMessageResponse(
 				InteractionResponseType.ChannelMessageWithSource,
 				data,
 			);
+
+			// Track response
+			this.trackResponse?.(this.id, this.token, 'responded');
+
+			// Log timing if debug enabled
+			this.logTiming?.(this.id, 'reply', startTime, true);
+
+			return response;
 		},
 		followUp(data) {
 			return createMessageResponse(
@@ -669,17 +692,45 @@ export function createCommandInteraction(
 			);
 		},
 		editReply(data) {
-			return createMessageResponse(
+			// Validate interaction can respond
+			if (!this.canRespond?.(this.id)) {
+				throw new Error('Interaction cannot edit reply: already responded, expired, or not deferred');
+			}
+
+			const startTime = Date.now();
+			const response = createMessageResponse(
 				InteractionResponseType.UpdateMessage,
 				data,
 			);
+
+			// Track response
+			this.trackResponse?.(this.id, this.token, 'responded');
+
+			// Log timing if debug enabled
+			this.logTiming?.(this.id, 'editReply', startTime, true);
+
+			return response;
 		},
 		deferReply(options) {
-			return createDeferredResponse(
+			// Validate interaction can respond
+			if (!this.canRespond?.(this.id)) {
+				throw new Error('Interaction cannot defer: already responded or expired');
+			}
+
+			const startTime = Date.now();
+			const response = createDeferredResponse(
 				options?.flags !== undefined
 					? { flags: options.flags }
 					: undefined,
 			);
+
+			// Track deferred state
+			this.trackResponse?.(this.id, this.token, 'deferred');
+
+			// Log timing if debug enabled
+			this.logTiming?.(this.id, 'deferReply', startTime, true);
+
+			return response;
 		},
 		showModal(data) {
 			const resolvedData: APIModalInteractionResponseCallbackData =
@@ -739,6 +790,11 @@ export function createCommandInteraction(
 				throw error;
 			}
 		},
+
+		// Helper methods for state management
+		canRespond: helpers?.canRespond,
+		trackResponse: helpers?.trackResponse,
+		logTiming: helpers?.logTiming,
 	};
 
 	return commandInteraction;
