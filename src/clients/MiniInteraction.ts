@@ -109,6 +109,18 @@ export type InteractionTimeoutConfig = {
 	enableTimeoutWarnings?: boolean;
 	/** Whether to force deferReply for slow operations (default: true) */
 	autoDeferSlowOperations?: boolean;
+	/** Whether to enable debug logging for interaction responses (default: false) */
+	enableResponseDebugLogging?: boolean;
+};
+
+/** Enhanced timeout configuration with response acknowledgment settings. */
+export type InteractionTimeoutConfigV2 = InteractionTimeoutConfig & {
+	/** Time to wait for Discord acknowledgment after sending response (default: 500ms) */
+	responseAcknowledgmentTimeout?: number;
+	/** Maximum retries for response acknowledgment (default: 2) */
+	responseAcknowledgmentRetries?: number;
+	/** Delay between acknowledgment retries (default: 100ms) */
+	responseAcknowledgmentRetryDelay?: number;
 };
 
 /** Handler signature invoked for Discord button interactions. */
@@ -311,6 +323,12 @@ export class MiniInteraction {
 		MiniInteractionModalHandler
 	>();
 	private readonly htmlTemplateCache = new Map<string, string>();
+	private readonly interactionStates = new Map<string, {
+		state: 'pending' | 'deferred' | 'responded' | 'expired';
+		timestamp: number;
+		token: string;
+		responseCount: number;
+	}>();
 	private commandsLoaded = false;
 	private loadCommandsPromise: Promise<void> | null = null;
 	private componentsLoaded = false;
@@ -366,8 +384,149 @@ export class MiniInteraction {
 			initialResponseTimeout: 2800, // Leave 200ms buffer before Discord's 3s limit
 			enableTimeoutWarnings: true,
 			autoDeferSlowOperations: true,
-			...timeoutConfig,
+			enableResponseDebugLogging: false,
+			responseAcknowledgmentTimeout: 500, // 500ms to wait for acknowledgment
+			responseAcknowledgmentRetries: 2,
+			responseAcknowledgmentRetryDelay: 100,
+			...(timeoutConfig as InteractionTimeoutConfigV2),
 		};
+	}
+
+	/**
+	 * Tracks the state of an interaction to prevent race conditions and double responses.
+	 */
+	private trackInteractionState(interactionId: string, token: string, state: 'pending' | 'deferred' | 'responded' | 'expired'): void {
+		const existing = this.interactionStates.get(interactionId);
+		const now = Date.now();
+
+		this.interactionStates.set(interactionId, {
+			state,
+			timestamp: now,
+			token,
+			responseCount: existing ? existing.responseCount + 1 : 1,
+		});
+
+		if (this.timeoutConfig.enableResponseDebugLogging) {
+			console.log(`[MiniInteraction:DEBUG] Interaction ${interactionId} state: ${state} (${existing ? existing.responseCount + 1 : 1} responses)`);
+		}
+	}
+
+
+	/**
+	 * Checks if an interaction can still respond (not expired and not already responded).
+	 */
+	private canRespond(interactionId: string): boolean {
+		const state = this.getInteractionState(interactionId);
+		if (!state) return true; // New interaction
+
+		// Check if expired (15 minutes)
+		if (Date.now() - state.timestamp > 900000) {
+			this.trackInteractionState(interactionId, state.token, 'expired');
+			return false;
+		}
+
+		// Check if already responded
+		if (state.state === 'responded') {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Logs response timing and acknowledgment for debugging.
+	 */
+	private logResponseTiming(interactionId: string, operation: string, startTime: number, success: boolean): void {
+		if (!this.timeoutConfig.enableResponseDebugLogging) return;
+
+		const elapsed = Date.now() - startTime;
+		const status = success ? 'SUCCESS' : 'FAILED';
+
+		console.log(`[MiniInteraction:DEBUG] ${operation} for interaction ${interactionId}: ${status} (${elapsed}ms)`);
+
+		if (success && elapsed > 2000) {
+			console.warn(`[MiniInteraction:WARN] ${operation} took ${elapsed}ms - consider using deferReply() for slow operations`);
+		}
+	}
+
+	/**
+	 * Simulates waiting for Discord acknowledgment to help debug timing issues.
+	 * Note: This is a best-effort simulation since actual acknowledgment happens at the HTTP level.
+	 */
+	private async simulateAcknowledgmentWait(interactionId: string, operation: string): Promise<void> {
+		if (!this.timeoutConfig.enableResponseDebugLogging) return;
+
+		const timeout = (this.timeoutConfig as InteractionTimeoutConfigV2).responseAcknowledgmentTimeout || 500;
+		const retries = (this.timeoutConfig as InteractionTimeoutConfigV2).responseAcknowledgmentRetries || 2;
+		const retryDelay = (this.timeoutConfig as InteractionTimeoutConfigV2).responseAcknowledgmentRetryDelay || 100;
+
+		console.log(`[MiniInteraction:DEBUG] Waiting for acknowledgment of ${operation} for interaction ${interactionId}...`);
+
+		for (let attempt = 0; attempt <= retries; attempt++) {
+			await new Promise(resolve => setTimeout(resolve, attempt === 0 ? timeout : retryDelay));
+
+			// In a real implementation, this would verify Discord actually received the response
+			// For now, we just simulate the wait time
+			const state = this.getInteractionState(interactionId);
+			if (state?.state === 'responded' || state?.state === 'deferred') {
+				console.log(`[MiniInteraction:DEBUG] Acknowledgment confirmed for ${operation} after ${attempt + 1} attempts`);
+				return;
+			}
+		}
+
+		console.warn(`[MiniInteraction:WARN] Acknowledgment timeout for ${operation} on interaction ${interactionId}`);
+	}
+
+	/**
+	 * Enables or disables debug logging for interaction responses and timing.
+	 * Useful for troubleshooting "didn't respond in time" errors.
+	 *
+	 * @param enabled - Whether to enable debug logging
+	 */
+	setResponseDebugLogging(enabled: boolean): void {
+		(this.timeoutConfig as InteractionTimeoutConfigV2).enableResponseDebugLogging = enabled;
+		console.log(`[MiniInteraction] Response debug logging ${enabled ? 'enabled' : 'disabled'}`);
+	}
+
+	/**
+	 * Gets the current state of an interaction.
+	 */
+	private getInteractionState(interactionId: string) {
+		return this.interactionStates.get(interactionId);
+	}
+
+	/**
+	 * Gets the current state of an interaction for debugging purposes.
+	 *
+	 * @param interactionId - The interaction ID to check
+	 * @returns The current interaction state or null if not found
+	 */
+	getInteractionStateInfo(interactionId: string) {
+		const state = this.interactionStates.get(interactionId);
+		return state ? { ...state } : null; // Return a copy to prevent external modification
+	}
+
+	/**
+	 * Clears expired interaction states to prevent memory leaks.
+	 * Call this periodically to clean up old interaction data.
+	 */
+	cleanupExpiredInteractions(): number {
+		const now = Date.now();
+		let cleaned = 0;
+
+		for (const [id, state] of this.interactionStates.entries()) {
+			// Remove interactions older than 15 minutes
+			if (now - state.timestamp > 900000) {
+				this.interactionStates.delete(id);
+				cleaned++;
+			}
+		}
+
+		if (cleaned > 0) {
+			console.log(`[MiniInteraction] Cleaned up ${cleaned} expired interactions`);
+		}
+
+		return cleaned;
 	}
 
 	private normalizeCommandData(
@@ -818,22 +977,28 @@ export class MiniInteraction {
 		}
 
 		if (interaction.type === InteractionType.ApplicationCommand) {
+			// Track interaction start
+			this.trackInteractionState(interaction.id, interaction.token, 'pending');
 			return this.handleApplicationCommand(interaction);
 		}
 
 		if (interaction.type === InteractionType.MessageComponent) {
+			// Track interaction start
+			this.trackInteractionState(interaction.id, interaction.token, 'pending');
 			return this.handleMessageComponent(
 				interaction as APIMessageComponentInteraction,
 			);
 		}
 
 		if (interaction.type === InteractionType.ModalSubmit) {
+			// Track interaction start
+			this.trackInteractionState(interaction.id, interaction.token, 'pending');
 			return this.handleModalSubmit(
 				interaction as APIModalSubmitInteraction,
 			);
 		}
 
-		// Check total processing time
+		// Check total processing time and log potential timeout issues
 		const totalProcessingTime = Date.now() - requestStartTime;
 		if (
 			this.timeoutConfig.enableTimeoutWarnings &&
@@ -841,12 +1006,18 @@ export class MiniInteraction {
 				this.timeoutConfig.initialResponseTimeout * 0.9
 		) {
 			console.warn(
-				`[MiniInteraction] WARNING: Interaction processing took ${totalProcessingTime}ms ` +
+				`[MiniInteraction] CRITICAL: Interaction processing took ${totalProcessingTime}ms ` +
 					`(${Math.round(
 						(totalProcessingTime / 3000) * 100,
 					)}% of Discord's 3-second limit). ` +
+					`This may cause "didn't respond in time" errors. ` +
 					`Consider optimizing or using deferReply() for slow operations.`,
 			);
+		}
+
+		// Log successful response timing for debugging
+		if (this.timeoutConfig.enableResponseDebugLogging) {
+			console.log(`[MiniInteraction:DEBUG] Request completed in ${totalProcessingTime}ms`);
 		}
 
 		return {
@@ -1916,6 +2087,11 @@ export class MiniInteraction {
 					) {
 						const interactionWithHelpers = createCommandInteraction(
 							commandInteraction as APIChatInputApplicationCommandInteraction,
+							{
+								canRespond: (id) => this.canRespond(id),
+								trackResponse: (id, token, state) => this.trackInteractionState(id, token, state),
+								logTiming: (id, op, start, success) => this.logResponseTiming(id, op, start, success),
+							}
 						);
 						response = await command.handler(
 							interactionWithHelpers as any,
