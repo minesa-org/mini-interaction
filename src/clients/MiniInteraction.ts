@@ -21,6 +21,7 @@ import {
 } from "discord-api-types/v10";
 import { verifyKey } from "discord-interactions";
 
+import { resolveJSONEncodable } from "../builders/shared.js";
 import { DISCORD_BASE_URL } from "../utils/constants.js";
 import type { InteractionCommand } from "../types/Commands.js";
 import { RoleConnectionMetadataTypes } from "../types/RoleConnectionMetadataTypes.js";
@@ -533,10 +534,7 @@ export class MiniInteraction {
 		data: InteractionCommand["data"],
 	): CommandDataPayload {
 		if (typeof data === "object" && data !== null) {
-			const toJSON = (data as { toJSON?: unknown }).toJSON;
-			if (typeof toJSON === "function") {
-				return toJSON.call(data) as CommandDataPayload;
-			}
+			return resolveJSONEncodable(data) as CommandDataPayload;
 		}
 
 		return data as CommandDataPayload;

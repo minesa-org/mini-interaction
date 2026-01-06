@@ -11,6 +11,7 @@ import type {
         MessageContextMenuInteraction,
         AppCommandInteraction,
 } from "../utils/ContextMenuInteraction.js";
+import type { JSONEncodable } from "../builders/shared.js";
 import type {
         ComponentCommand,
         ModalCommand,
@@ -58,7 +59,12 @@ export type InteractionCommand = {
                 | CommandBuilder
                 | UserCommandBuilder
                 | MessageCommandBuilder
-                | AppCommandBuilder;
+                | AppCommandBuilder
+                | JSONEncodable<
+                        | RESTPostAPIChatInputApplicationCommandsJSONBody
+                        | RESTPostAPIContextMenuApplicationCommandsJSONBody
+                        | RESTPostAPIPrimaryEntryPointApplicationCommandJSONBody
+                  >;
         handler: CommandHandler;
         /**
          * Optional array of component handlers related to this command.
