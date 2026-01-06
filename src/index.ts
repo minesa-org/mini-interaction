@@ -37,11 +37,11 @@ export {
         AppCommandInteraction,
 } from "./utils/ContextMenuInteraction.js";
 export type {
-        MiniInteractionFetchHandler,
-        MiniInteractionNodeHandler,
-        MiniInteractionHandlerResult,
-        MiniInteractionRequest,
-        MiniInteractionOptions,
+        InteractionFetchHandler,
+        InteractionNodeHandler,
+        InteractionHandlerResult,
+        InteractionRequest,
+        InteractionClientOptions,
         DiscordOAuthAuthorizeContext,
         DiscordOAuthCallbackOptions,
         DiscordOAuthCallbackTemplates,
@@ -52,7 +52,7 @@ export type {
         DiscordOAuthVerificationPageOptions,
 } from "./clients/MiniInteraction.js";
 export type {
-        MiniInteractionCommand,
+        InteractionCommand,
         SlashCommandHandler,
         UserCommandHandler,
         MessageCommandHandler,
@@ -60,17 +60,17 @@ export type {
         CommandHandler,
 } from "./types/Commands.js";
 export type {
-	MiniInteractionComponent,
-	MiniInteractionButtonHandler,
-	MiniInteractionStringSelectHandler,
-	MiniInteractionRoleSelectHandler,
-	MiniInteractionUserSelectHandler,
-	MiniInteractionChannelSelectHandler,
-	MiniInteractionMentionableSelectHandler,
-	MiniInteractionComponentHandler,
-	MiniInteractionModal,
-	MiniInteractionModalHandler,
-	MiniInteractionHandler,
+	ComponentCommand,
+	ButtonComponentHandler,
+	StringSelectComponentHandler,
+	RoleSelectComponentHandler,
+	UserSelectComponentHandler,
+	ChannelSelectComponentHandler,
+	MentionableSelectComponentHandler,
+	ComponentHandler,
+	ModalCommand,
+	ModalHandler,
+	InteractionHandler,
 } from "./clients/MiniInteraction.js";
 export {
 	MessageComponentInteraction,
@@ -89,14 +89,15 @@ export { ChannelType } from "./types/ChannelType.js";
 export {
 	InteractionFollowUpFlags,
 	InteractionReplyFlags,
+	InteractionFlags,
 } from "./types/InteractionFlags.js";
 export { ButtonStyle } from "./types/ButtonStyle.js";
 export { SeparatorSpacingSize } from "./types/SeparatorSpacingSize.js";
 export { TextInputStyle } from "discord-api-types/v10";
 export { MiniPermFlags } from "./types/PermissionFlags.js";
 export type {
-	MiniComponentActionRow,
-	MiniComponentMessageActionRow,
+	ComponentCommandActionRow,
+	ComponentMessageActionRow,
 } from "./types/ComponentTypes.js";
 export * from "./builders/index.js";
 export { MiniDataBuilder } from "./database/MiniDataBuilder.js";
