@@ -38,6 +38,8 @@ export type ModalSubmitInteraction = APIModalSubmitInteraction & {
 	getTextInputValues: () => Map<string, string>;
 };
 
+export const ModalSubmitInteraction = {};
+
 /**
  * Wraps a raw modal submit interaction with helper methods.
  *

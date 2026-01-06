@@ -53,9 +53,13 @@ export type ResolvedUserOption = {
 	member?: APIInteractionDataResolvedGuildMember;
 };
 
+export const ResolvedUserOption = {};
+
 export type MentionableOption =
 	| { type: "user"; value: ResolvedUserOption }
 	| { type: "role"; value: APIRole };
+
+export const MentionableOption = {};
 
 type FocusedOptionsResult = {
 	subcommandGroup: string | null;
@@ -557,6 +561,8 @@ export interface CommandInteraction
 	trackResponse?(interactionId: string, token: string, state: 'responded' | 'deferred'): void;
 	logTiming?(interactionId: string, operation: string, startTime: number, success: boolean): void;
 }
+
+export const CommandInteraction = {};
 
 /**
  * Wraps a raw application command interaction with helper methods and option resolvers.

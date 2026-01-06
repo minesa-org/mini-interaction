@@ -26,12 +26,12 @@ export {
 	CommandInteractionOptionResolver,
 	createCommandInteraction,
 } from "./utils/CommandInteractionOptions.js";
-export type {
+export {
 	CommandInteraction,
 	MentionableOption,
         ResolvedUserOption,
 } from "./utils/CommandInteractionOptions.js";
-export type {
+export {
         UserContextMenuInteraction,
         MessageContextMenuInteraction,
         AppCommandInteraction,
@@ -72,7 +72,7 @@ export type {
 	MiniInteractionModalHandler,
 	MiniInteractionHandler,
 } from "./clients/MiniInteraction.js";
-export type {
+export {
 	MessageComponentInteraction,
 	ButtonInteraction,
 	StringSelectInteraction,
@@ -83,7 +83,7 @@ export type {
 	ResolvedUserOption as ComponentResolvedUserOption,
 	ResolvedMentionableOption as ComponentResolvedMentionableOption,
 } from "./utils/MessageComponentInteraction.js";
-export type { ModalSubmitInteraction } from "./utils/ModalSubmitInteraction.js";
+export { ModalSubmitInteraction } from "./utils/ModalSubmitInteraction.js";
 export { RoleConnectionMetadataTypes } from "./types/RoleConnectionMetadataTypes.js";
 export { ChannelType } from "./types/ChannelType.js";
 export {

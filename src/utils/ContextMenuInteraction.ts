@@ -55,6 +55,8 @@ export type UserContextMenuInteraction =
 			targetUser?: APIUser;
 		};
 
+export const UserContextMenuInteraction = {};
+
 /**
  * Message context menu interaction with helper methods.
  */
@@ -65,12 +67,16 @@ export type MessageContextMenuInteraction =
                         targetMessage?: APIMessage;
                 };
 
+export const MessageContextMenuInteraction = {};
+
 /**
  * Primary entry point interaction with helper methods.
  */
 export type AppCommandInteraction =
         APIPrimaryEntryPointCommandInteraction &
                 ContextMenuInteractionHelpers;
+
+export const AppCommandInteraction = {};
 
 function createContextMenuInteractionHelpers(): ContextMenuInteractionHelpers {
 	let capturedResponse: APIInteractionResponse | null = null;

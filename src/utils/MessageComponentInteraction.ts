@@ -34,10 +34,14 @@ export type ResolvedUserOption = {
 	member?: APIInteractionDataResolvedGuildMember;
 };
 
+export const ResolvedUserOption = {};
+
 /** Resolved mentionable option (either a user or role). */
 export type ResolvedMentionableOption =
 	| { type: "user"; value: ResolvedUserOption }
 	| { type: "role"; value: APIRole };
+
+export const ResolvedMentionableOption = {};
 
 /**
  * Base helper methods available on all component interactions.
@@ -71,6 +75,8 @@ export interface ButtonInteraction
 	data: APIMessageButtonInteractionData;
 }
 
+export const ButtonInteraction = {};
+
 /**
  * String select menu interaction with helper methods.
  */
@@ -81,6 +87,8 @@ export interface StringSelectInteraction
 	values: string[];
 	getStringValues: () => string[];
 }
+
+export const StringSelectInteraction = {};
 
 /**
  * Role select menu interaction with helper methods.
@@ -93,6 +101,8 @@ export interface RoleSelectInteraction
 	getRoles: () => APIRole[];
 }
 
+export const RoleSelectInteraction = {};
+
 /**
  * User select menu interaction with helper methods.
  */
@@ -103,6 +113,8 @@ export interface UserSelectInteraction
 	values: string[];
 	getUsers: () => ResolvedUserOption[];
 }
+
+export const UserSelectInteraction = {};
 
 /**
  * Channel select menu interaction with helper methods.
@@ -115,6 +127,8 @@ export interface ChannelSelectInteraction
 	getChannels: () => APIInteractionDataResolvedChannel[];
 }
 
+export const ChannelSelectInteraction = {};
+
 /**
  * Mentionable select menu interaction with helper methods.
  */
@@ -125,6 +139,8 @@ export interface MentionableSelectInteraction
 	values: string[];
 	getMentionables: () => ResolvedMentionableOption[];
 }
+
+export const MentionableSelectInteraction = {};
 
 /**
  * Represents a component interaction augmented with helper response methods.
@@ -181,6 +197,8 @@ export type MessageComponentInteraction = APIMessageComponentInteraction & {
 	 */
 	getMentionables: () => ResolvedMentionableOption[];
 };
+
+export const MessageComponentInteraction = {};
 
 /**
  * Wraps a raw component interaction with helper methods mirroring Discord's expected responses.
