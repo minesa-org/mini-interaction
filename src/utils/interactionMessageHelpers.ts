@@ -43,7 +43,7 @@ export type InteractionMessageData = {
 		| JSONEncodable<TopLevelComponent>[]
 		| JSONEncodable<TopLevelComponent[]>;
 	embeds?: unknown[]; // Adding embeds to fix type error, though seemingly unused or weakly typed before
-	flags?: InteractionFlags;
+	flags?: MessageFlagLike | MessageFlagLike[];
 };
 
 /** Deferred response payload recognised by helper methods. */
@@ -110,6 +110,10 @@ export function normaliseInteractionMessageData(
 
 	if (data.embeds) {
 		responseData.embeds = data.embeds.map((e: unknown) => resolveJSONEncodable(e));
+	}
+
+	if (data.flags !== undefined) {
+		responseData.flags = normaliseMessageFlags(data.flags);
 	}
 
 	return responseData;
