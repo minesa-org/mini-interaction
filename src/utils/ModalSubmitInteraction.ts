@@ -36,6 +36,12 @@ export type ModalSubmitInteraction = APIModalSubmitInteraction & {
 	 * @returns A map of custom_id to value for all text inputs
 	 */
 	getTextInputValues: () => Map<string, string>;
+	/**
+	 * Helper method to get the selected values of a select menu component by custom_id.
+	 * @param customId - The custom_id of the select menu component
+	 * @returns The selected values of the select menu, or undefined if not found
+	 */
+	getSelectMenuValues: (customId: string) => string[] | undefined;
 };
 
 export const ModalSubmitInteraction = {};
@@ -119,7 +125,33 @@ export function createModalSubmitInteraction(
 		return textInputs;
 	};
 
+	// Helper to extract select menu values from modal components
+	const extractSelectMenuValues = (): Map<string, string[]> => {
+		const selectMenuValues = new Map<string, string[]>();
+
+		for (const component of interaction.data.components) {
+			// Handle action rows
+			if ("components" in component && Array.isArray(component.components)) {
+				for (const child of component.components) {
+					if ("values" in child && "custom_id" in child && Array.isArray(child.values)) {
+						selectMenuValues.set(child.custom_id, child.values);
+					}
+				}
+			}
+			// Handle labeled components (unlikely for select menus but good for completeness if spec allows)
+			else if ("component" in component) {
+				const labeledComponent = component.component as any; // Using any as ModalSubmitComponent might not cover select menus fully in types yet or strictness varies
+				if ("values" in labeledComponent && "custom_id" in labeledComponent && Array.isArray(labeledComponent.values)) {
+					selectMenuValues.set(labeledComponent.custom_id, labeledComponent.values);
+				}
+			}
+		}
+
+		return selectMenuValues;
+	};
+
 	const textInputValues = extractTextInputs();
+	const selectMenuValues = extractSelectMenuValues();
 
 	const getTextInputValue = (customId: string): string | undefined => {
 		return textInputValues.get(customId);
@@ -135,6 +167,7 @@ export function createModalSubmitInteraction(
 		getResponse,
 		getTextInputValue,
 		getTextInputValues,
+		getSelectMenuValues: (customId: string) => selectMenuValues.get(customId),
 	});
 }
 

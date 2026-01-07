@@ -560,23 +560,7 @@ export class MiniInteraction {
 
 		this.commands.set(commandName, normalizedCommand);
 
-		if (
-			normalizedCommand.components &&
-			Array.isArray(normalizedCommand.components)
-		) {
-			for (const component of normalizedCommand.components) {
-				this.useComponent(component);
-			}
-		}
 
-		if (
-			normalizedCommand.modals &&
-			Array.isArray(normalizedCommand.modals)
-		) {
-			for (const modal of normalizedCommand.modals) {
-				this.useModal(modal);
-			}
-		}
 	}
 
 	/**

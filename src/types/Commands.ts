@@ -12,10 +12,7 @@ import type {
         AppCommandInteraction,
 } from "../utils/ContextMenuInteraction.js";
 import type { JSONEncodable } from "../builders/shared.js";
-import type {
-        ComponentCommand,
-        ModalCommand,
-} from "../clients/MiniInteraction.js";
+
 import type { CommandBuilder } from "../commands/CommandBuilder.js";
 import type {
         MessageCommandBuilder,
@@ -66,16 +63,6 @@ export type InteractionCommand = {
                         | RESTPostAPIPrimaryEntryPointApplicationCommandJSONBody
                   >;
         handler: CommandHandler;
-        /**
-         * Optional array of component handlers related to this command.
-         * These will be automatically registered when the command is loaded.
-	 */
-	components?: ComponentCommand[];
-	/**
-	 * Optional array of modal handlers related to this command.
-	 * These will be automatically registered when the command is loaded.
-	 */
-	modals?: ModalCommand[];
 };
 
 /** Map of command names to their registered MiniInteraction command definitions. */
