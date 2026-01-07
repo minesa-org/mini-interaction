@@ -21,8 +21,9 @@ import {
 } from "discord-api-types/v10";
 import { verifyKey } from "discord-interactions";
 
+import { resolveJSONEncodable } from "../builders/shared.js";
 import { DISCORD_BASE_URL } from "../utils/constants.js";
-import type { MiniInteractionCommand } from "../types/Commands.js";
+import type { InteractionCommand } from "../types/Commands.js";
 import { RoleConnectionMetadataTypes } from "../types/RoleConnectionMetadataTypes.js";
 import { createCommandInteraction } from "../utils/CommandInteractionOptions.js";
 import {
@@ -67,7 +68,7 @@ const SUPPORTED_MODULE_EXTENSIONS = new Set([
 ]);
 
 /** Configuration parameters for the MiniInteraction client. */
-export type MiniInteractionOptions = {
+export type InteractionClientOptions = {
 	applicationId: string;
 	publicKey: string;
 	commandsDirectory?: string | false;
@@ -89,14 +90,14 @@ export type RoleConnectionMetadataField = {
 /**
  * HTTP request information needed to validate and handle Discord interaction payloads.
  */
-export type MiniInteractionRequest = {
+export type InteractionRequest = {
 	body: string | Uint8Array;
 	signature?: string;
 	timestamp?: string;
 };
 
 /** Result payload returned by request handlers when processing an interaction. */
-export type MiniInteractionHandlerResult = {
+export type InteractionHandlerResult = {
 	status: number;
 	body: APIInteractionResponse | { error: string };
 };
@@ -124,62 +125,62 @@ export type InteractionTimeoutConfigV2 = InteractionTimeoutConfig & {
 };
 
 /** Handler signature invoked for Discord button interactions. */
-export type MiniInteractionButtonHandler = (
+export type ButtonComponentHandler = (
 	interaction: ButtonInteraction,
 ) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
 
 /** Handler signature invoked for Discord string select menu interactions. */
-export type MiniInteractionStringSelectHandler = (
+export type StringSelectComponentHandler = (
 	interaction: StringSelectInteraction,
 ) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
 
 /** Handler signature invoked for Discord role select menu interactions. */
-export type MiniInteractionRoleSelectHandler = (
+export type RoleSelectComponentHandler = (
 	interaction: RoleSelectInteraction,
 ) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
 
 /** Handler signature invoked for Discord user select menu interactions. */
-export type MiniInteractionUserSelectHandler = (
+export type UserSelectComponentHandler = (
 	interaction: UserSelectInteraction,
 ) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
 
 /** Handler signature invoked for Discord channel select menu interactions. */
-export type MiniInteractionChannelSelectHandler = (
+export type ChannelSelectComponentHandler = (
 	interaction: ChannelSelectInteraction,
 ) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
 
 /** Handler signature invoked for Discord mentionable select menu interactions. */
-export type MiniInteractionMentionableSelectHandler = (
+export type MentionableSelectComponentHandler = (
 	interaction: MentionableSelectInteraction,
 ) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
 
 /** Handler signature invoked for Discord message component interactions (generic). */
-export type MiniInteractionComponentHandler = (
+export type ComponentHandler = (
 	interaction: MessageComponentInteraction,
 ) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
 
 /** Handler signature invoked for Discord modal submit interactions. */
-export type MiniInteractionModalHandler = (
+export type ModalHandler = (
 	interaction: ModalSubmitInteraction,
 ) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
 
 /** Unified handler signature that accepts any component or modal interaction. */
-export type MiniInteractionHandler =
-	| MiniInteractionButtonHandler
-	| MiniInteractionStringSelectHandler
-	| MiniInteractionRoleSelectHandler
-	| MiniInteractionUserSelectHandler
-	| MiniInteractionChannelSelectHandler
-	| MiniInteractionMentionableSelectHandler
-	| MiniInteractionComponentHandler
-	| MiniInteractionModalHandler;
+export type InteractionHandler =
+	| ButtonComponentHandler
+	| StringSelectComponentHandler
+	| RoleSelectComponentHandler
+	| UserSelectComponentHandler
+	| ChannelSelectComponentHandler
+	| MentionableSelectComponentHandler
+	| ComponentHandler
+	| ModalHandler;
 
 type CommandDataPayload =
 	| RESTPostAPIChatInputApplicationCommandsJSONBody
 	| RESTPostAPIContextMenuApplicationCommandsJSONBody
 	| RESTPostAPIPrimaryEntryPointApplicationCommandJSONBody;
 
-type RegisteredMiniInteractionCommand = Omit<MiniInteractionCommand, "data"> & {
+type RegisteredInteractionCommand = Omit<InteractionCommand, "data"> & {
 	data: CommandDataPayload;
 };
 
@@ -190,25 +191,25 @@ type RegisteredMiniInteractionCommand = Omit<MiniInteractionCommand, "data"> & {
  * - Other files are treated as component handlers
  * You can use this type for both - the system will figure out which one it is.
  */
-export type MiniInteractionComponent = {
+export type ComponentCommand = {
 	customId: string;
-	handler: MiniInteractionHandler;
+	handler: InteractionHandler;
 };
 
 /** Structure describing a modal handler mapped to a custom id. */
-export type MiniInteractionModal = {
+export type ModalCommand = {
 	customId: string;
-	handler: MiniInteractionModalHandler;
+	handler: ModalHandler;
 };
 
 /** Node.js HTTP handler compatible with frameworks like Express or Next.js API routes. */
-export type MiniInteractionNodeHandler = (
+export type InteractionNodeHandler = (
 	request: IncomingMessage,
 	response: ServerResponse,
 ) => void;
 
 /** Web Fetch API compatible request handler for platforms such as Cloudflare Workers. */
-export type MiniInteractionFetchHandler = (
+export type InteractionFetchHandler = (
 	request: Request,
 ) => Promise<Response>;
 
@@ -312,15 +313,15 @@ export class MiniInteraction {
 	private readonly timeoutConfig: Required<InteractionTimeoutConfig>;
 	private readonly commands = new Map<
 		string,
-		RegisteredMiniInteractionCommand
+		RegisteredInteractionCommand
 	>();
 	private readonly componentHandlers = new Map<
 		string,
-		MiniInteractionComponentHandler
+		ComponentHandler
 	>();
 	private readonly modalHandlers = new Map<
 		string,
-		MiniInteractionModalHandler
+		ModalHandler
 	>();
 	private readonly htmlTemplateCache = new Map<string, string>();
 	private readonly interactionStates = new Map<string, {
@@ -348,7 +349,7 @@ export class MiniInteraction {
 		fetchImplementation,
 		verifyKeyImplementation,
 		timeoutConfig,
-	}: MiniInteractionOptions) {
+	}: InteractionClientOptions) {
 		if (!applicationId) {
 			throw new Error("[MiniInteraction] applicationId is required");
 		}
@@ -530,19 +531,16 @@ export class MiniInteraction {
 	}
 
 	private normalizeCommandData(
-		data: MiniInteractionCommand["data"],
+		data: InteractionCommand["data"],
 	): CommandDataPayload {
 		if (typeof data === "object" && data !== null) {
-			const toJSON = (data as { toJSON?: unknown }).toJSON;
-			if (typeof toJSON === "function") {
-				return toJSON.call(data) as CommandDataPayload;
-			}
+			return resolveJSONEncodable(data) as CommandDataPayload;
 		}
 
 		return data as CommandDataPayload;
 	}
 
-	private registerCommand(command: MiniInteractionCommand): void {
+	private registerCommand(command: InteractionCommand): void {
 		const normalizedData = this.normalizeCommandData(command.data);
 		const commandName = normalizedData?.name;
 		if (!commandName) {
@@ -555,7 +553,7 @@ export class MiniInteraction {
 			);
 		}
 
-		const normalizedCommand: RegisteredMiniInteractionCommand = {
+		const normalizedCommand: RegisteredInteractionCommand = {
 			...command,
 			data: normalizedData,
 		};
@@ -586,7 +584,7 @@ export class MiniInteraction {
 	 *
 	 * @param command - The command definition to register.
 	 */
-	useCommand(command: MiniInteractionCommand): this {
+	useCommand(command: InteractionCommand): this {
 		this.registerCommand(command);
 		return this;
 	}
@@ -596,7 +594,7 @@ export class MiniInteraction {
 	 *
 	 * @param commands - The command definitions to register.
 	 */
-	useCommands(commands: MiniInteractionCommand[]): this {
+	useCommands(commands: InteractionCommand[]): this {
 		for (const command of commands) {
 			this.useCommand(command);
 		}
@@ -609,7 +607,7 @@ export class MiniInteraction {
 	 *
 	 * @param component - The component definition to register.
 	 */
-	useComponent(component: MiniInteractionComponent): this {
+	useComponent(component: ComponentCommand): this {
 		const customId = component?.customId;
 		if (!customId) {
 			throw new Error("[MiniInteraction] component.customId is required");
@@ -629,7 +627,7 @@ export class MiniInteraction {
 
 		this.componentHandlers.set(
 			customId,
-			component.handler as MiniInteractionComponentHandler,
+			component.handler as ComponentHandler,
 		);
 		return this;
 	}
@@ -639,7 +637,7 @@ export class MiniInteraction {
 	 *
 	 * @param components - The component definitions to register.
 	 */
-	useComponents(components: MiniInteractionComponent[]): this {
+	useComponents(components: ComponentCommand[]): this {
 		for (const component of components) {
 			this.useComponent(component);
 		}
@@ -652,7 +650,7 @@ export class MiniInteraction {
 	 *
 	 * @param modal - The modal definition to register.
 	 */
-	useModal(modal: MiniInteractionModal): this {
+	useModal(modal: ModalCommand): this {
 		const customId = modal?.customId;
 		if (!customId) {
 			throw new Error("[MiniInteraction] modal.customId is required");
@@ -679,7 +677,7 @@ export class MiniInteraction {
 	 *
 	 * @param modals - The modal definitions to register.
 	 */
-	useModals(modals: MiniInteractionModal[]): this {
+	useModals(modals: ModalCommand[]): this {
 		for (const modal of modals) {
 			this.useModal(modal);
 		}
@@ -927,8 +925,8 @@ export class MiniInteraction {
 	 * @param request - The request payload containing headers and body data.
 	 */
 	async handleRequest(
-		request: MiniInteractionRequest,
-	): Promise<MiniInteractionHandlerResult> {
+		request: InteractionRequest,
+	): Promise<InteractionHandlerResult> {
 		const requestStartTime = Date.now();
 		const { body, signature, timestamp } = request;
 
@@ -1032,7 +1030,7 @@ export class MiniInteraction {
 	 * Creates a Node.js style request handler compatible with Express, Next.js API routes,
 	 * Vercel serverless functions, and any runtime that expects a `(req, res)` listener.
 	 */
-	createNodeHandler(): MiniInteractionNodeHandler {
+	createNodeHandler(): InteractionNodeHandler {
 		return (request, response) => {
 			if (request.method !== "POST") {
 				response.statusCode = 405;
@@ -1115,7 +1113,7 @@ export class MiniInteraction {
 	 */
 	discordOAuthVerificationPage(
 		options: DiscordOAuthVerificationPageOptions = {},
-	): MiniInteractionNodeHandler {
+	): InteractionNodeHandler {
 		const scopes = options.scopes ?? ["identify", "role_connections.write"];
 		const htmlFile = options.htmlFile ?? "index.html";
 		const placeholderKey = this.normalizeTemplateKey(
@@ -1296,7 +1294,7 @@ export class MiniInteraction {
 	 */
 	discordOAuthCallback(
 		options: DiscordOAuthCallbackOptions,
-	): MiniInteractionNodeHandler {
+	): InteractionNodeHandler {
 		const templates: DiscordOAuthCallbackTemplates = {
 			...DEFAULT_DISCORD_OAUTH_TEMPLATES,
 			...options.templates,
@@ -1428,7 +1426,7 @@ export class MiniInteraction {
 	/**
 	 * Creates a Fetch API compatible handler for runtimes like Workers or Deno.
 	 */
-	createFetchHandler(): MiniInteractionFetchHandler {
+	createFetchHandler(): InteractionFetchHandler {
 		return async (request) => {
 			if (request.method !== "POST") {
 				return new Response(
@@ -1535,7 +1533,7 @@ export class MiniInteraction {
 	 */
 	private async importCommandModule(
 		absolutePath: string,
-	): Promise<MiniInteractionCommand | null> {
+	): Promise<InteractionCommand | null> {
 		try {
 			const moduleUrl = pathToFileURL(absolutePath).href;
 			const imported = await import(moduleUrl);
@@ -1581,7 +1579,7 @@ export class MiniInteraction {
 			}
 
 			const { data, handler, components, modals } =
-				candidate as MiniInteractionCommand;
+				candidate as InteractionCommand;
 			const normalizedData = this.normalizeCommandData(data);
 
 			if (!normalizedData || typeof normalizedData.name !== "string") {
@@ -1620,7 +1618,7 @@ export class MiniInteraction {
 	 */
 	private async importComponentModule(
 		absolutePath: string,
-	): Promise<MiniInteractionComponent[]> {
+	): Promise<ComponentCommand[]> {
 		try {
 			const moduleUrl = pathToFileURL(absolutePath).href;
 			const imported = await import(moduleUrl);
@@ -1670,7 +1668,7 @@ export class MiniInteraction {
 				}
 			}
 
-			const components: MiniInteractionComponent[] = [];
+			const components: ComponentCommand[] = [];
 
 			// Check if this file is in a "modals" subdirectory
 			const isModalFile =
@@ -1682,7 +1680,7 @@ export class MiniInteraction {
 					continue;
 				}
 
-				const { customId, handler } = item as MiniInteractionComponent;
+				const { customId, handler } = item as ComponentCommand;
 
 				if (typeof customId !== "string") {
 					console.warn(
@@ -1703,7 +1701,7 @@ export class MiniInteraction {
 					this.useModal({
 						customId,
 						handler:
-							handler as unknown as MiniInteractionModalHandler,
+							handler as unknown as ModalHandler,
 					});
 				} else {
 					components.push({ customId, handler });
@@ -1887,7 +1885,7 @@ export class MiniInteraction {
 	 */
 	private async handleMessageComponent(
 		interaction: APIMessageComponentInteraction,
-	): Promise<MiniInteractionHandlerResult> {
+	): Promise<InteractionHandlerResult> {
 		const customId = interaction?.data?.custom_id;
 		if (!customId) {
 			return {
@@ -1966,7 +1964,7 @@ export class MiniInteraction {
 	 */
 	private async handleModalSubmit(
 		interaction: APIModalSubmitInteraction,
-	): Promise<MiniInteractionHandlerResult> {
+	): Promise<InteractionHandlerResult> {
 		const customId = interaction?.data?.custom_id;
 		if (!customId) {
 			return {
@@ -2045,7 +2043,7 @@ export class MiniInteraction {
 	 */
 	private async handleApplicationCommand(
 		interaction: APIInteraction,
-	): Promise<MiniInteractionHandlerResult> {
+	): Promise<InteractionHandlerResult> {
 		await this.ensureCommandsLoaded();
 
 		const commandInteraction =

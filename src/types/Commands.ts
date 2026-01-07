@@ -11,9 +11,10 @@ import type {
         MessageContextMenuInteraction,
         AppCommandInteraction,
 } from "../utils/ContextMenuInteraction.js";
+import type { JSONEncodable } from "../builders/shared.js";
 import type {
-        MiniInteractionComponent,
-        MiniInteractionModal,
+        ComponentCommand,
+        ModalCommand,
 } from "../clients/MiniInteraction.js";
 import type { CommandBuilder } from "../commands/CommandBuilder.js";
 import type {
@@ -50,7 +51,7 @@ export type CommandHandler =
         | AppCommandHandler;
 
 /** Structure representing a slash command definition and its runtime handler. */
-export type MiniInteractionCommand = {
+export type InteractionCommand = {
         data:
                 | RESTPostAPIChatInputApplicationCommandsJSONBody
                 | RESTPostAPIContextMenuApplicationCommandsJSONBody
@@ -58,19 +59,24 @@ export type MiniInteractionCommand = {
                 | CommandBuilder
                 | UserCommandBuilder
                 | MessageCommandBuilder
-                | AppCommandBuilder;
+                | AppCommandBuilder
+                | JSONEncodable<
+                        | RESTPostAPIChatInputApplicationCommandsJSONBody
+                        | RESTPostAPIContextMenuApplicationCommandsJSONBody
+                        | RESTPostAPIPrimaryEntryPointApplicationCommandJSONBody
+                  >;
         handler: CommandHandler;
         /**
          * Optional array of component handlers related to this command.
          * These will be automatically registered when the command is loaded.
 	 */
-	components?: MiniInteractionComponent[];
+	components?: ComponentCommand[];
 	/**
 	 * Optional array of modal handlers related to this command.
 	 * These will be automatically registered when the command is loaded.
 	 */
-	modals?: MiniInteractionModal[];
+	modals?: ModalCommand[];
 };
 
 /** Map of command names to their registered MiniInteraction command definitions. */
-export type MiniInteractionCommandsMap = Map<string, MiniInteractionCommand>;
+export type InteractionCommandsMap = Map<string, InteractionCommand>;

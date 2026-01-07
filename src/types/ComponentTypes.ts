@@ -3,8 +3,8 @@ import type {
 	APIComponentInMessageActionRow,
 } from "discord-api-types/v10";
 
-/** * Components that can appear inside a Discord action row container. */
-export type MiniComponentMessageActionRow = APIComponentInMessageActionRow;
+/** Defines a component structure for use in ActionRow builders. */
+export type ActionRowComponent = APIComponentInActionRow;
 
-/** Components that are valid inside message action rows. */
-export type MiniComponentActionRow = APIComponentInActionRow;
+/** Defines a message component structure for use in message builders. */
+export type MessageActionRowComponent = APIComponentInMessageActionRow;

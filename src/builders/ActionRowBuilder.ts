@@ -3,52 +3,53 @@ import type { APIActionRowComponent } from "discord-api-types/v10";
 
 import { resolveJSONEncodable } from "./shared.js";
 import type { JSONEncodable } from "./shared.js";
-import type { MiniComponentActionRow } from "../types/ComponentTypes.js";
+import type { ActionRowComponent } from "../types/ComponentTypes.js";
 
 /** Values accepted when composing component action rows. */
-export type ActionRowComponentLike<T extends MiniComponentActionRow> =
+export type ActionRowComponentLike<T extends ActionRowComponent> =
 	| JSONEncodable<T>
 	| T;
 
-/** Builder for Discord action row components. */
-export class ActionRowBuilder<
-	T extends MiniComponentActionRow = MiniComponentActionRow,
-> implements JSONEncodable<APIActionRowComponent<T>>
+/** Builder for creating Action Row components. */
+export class ActionRowBuilder<T extends ActionRowComponent>
+	implements JSONEncodable<APIActionRowComponent<T>>
 {
-	private components: ActionRowComponentLike<T>[];
+	private components: T[] = [];
 
-	/**
-	 * Creates a new action row builder with optional seed components.
-	 */
-	constructor(components: Iterable<ActionRowComponentLike<T>> = []) {
-		this.components = Array.from(components);
+	constructor(data: Partial<APIActionRowComponent<T>> = {}) {
+		this.components = [...(data.components ?? [])];
 	}
 
 	/**
-	 * Appends additional components to the action row.
+	 * Adds components to this action row.
+	 *
+	 * @param components - The components to add (can be builders or raw objects).
 	 */
-	addComponents(...components: ActionRowComponentLike<T>[]): this {
-		this.components.push(...components);
+	public addComponents(
+		...components: (T | JSONEncodable<T>)[]
+	): this {
+		this.components.push(
+			...components.map((c) => resolveJSONEncodable(c)),
+		);
 		return this;
 	}
 
 	/**
-	 * Replaces the current action row contents.
+	 * Sets the components for this action row, replacing any existing ones.
+	 *
+	 * @param components - The new components to set.
 	 */
-	setComponents(components: Iterable<ActionRowComponentLike<T>>): this {
-		this.components = Array.from(components);
+	public setComponents(
+		...components: (T | JSONEncodable<T>)[]
+	): this {
+		this.components = components.map((c) => resolveJSONEncodable(c));
 		return this;
 	}
 
-	/**
-	 * Serialises the builder into an API compatible action row payload.
-	 */
-	toJSON(): APIActionRowComponent<T> {
+	public toJSON(): APIActionRowComponent<T> {
 		return {
 			type: ComponentType.ActionRow,
-			components: this.components.map((component) =>
-				resolveJSONEncodable(component),
-			),
+			components: [...this.components],
 		};
 	}
 }

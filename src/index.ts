@@ -26,22 +26,22 @@ export {
 	CommandInteractionOptionResolver,
 	createCommandInteraction,
 } from "./utils/CommandInteractionOptions.js";
-export type {
+export {
 	CommandInteraction,
 	MentionableOption,
         ResolvedUserOption,
 } from "./utils/CommandInteractionOptions.js";
-export type {
+export {
         UserContextMenuInteraction,
         MessageContextMenuInteraction,
         AppCommandInteraction,
 } from "./utils/ContextMenuInteraction.js";
 export type {
-        MiniInteractionFetchHandler,
-        MiniInteractionNodeHandler,
-        MiniInteractionHandlerResult,
-        MiniInteractionRequest,
-        MiniInteractionOptions,
+        InteractionFetchHandler,
+        InteractionNodeHandler,
+        InteractionHandlerResult,
+        InteractionRequest,
+        InteractionClientOptions,
         DiscordOAuthAuthorizeContext,
         DiscordOAuthCallbackOptions,
         DiscordOAuthCallbackTemplates,
@@ -52,7 +52,7 @@ export type {
         DiscordOAuthVerificationPageOptions,
 } from "./clients/MiniInteraction.js";
 export type {
-        MiniInteractionCommand,
+        InteractionCommand,
         SlashCommandHandler,
         UserCommandHandler,
         MessageCommandHandler,
@@ -60,19 +60,19 @@ export type {
         CommandHandler,
 } from "./types/Commands.js";
 export type {
-	MiniInteractionComponent,
-	MiniInteractionButtonHandler,
-	MiniInteractionStringSelectHandler,
-	MiniInteractionRoleSelectHandler,
-	MiniInteractionUserSelectHandler,
-	MiniInteractionChannelSelectHandler,
-	MiniInteractionMentionableSelectHandler,
-	MiniInteractionComponentHandler,
-	MiniInteractionModal,
-	MiniInteractionModalHandler,
-	MiniInteractionHandler,
+	ComponentCommand,
+	ButtonComponentHandler,
+	StringSelectComponentHandler,
+	RoleSelectComponentHandler,
+	UserSelectComponentHandler,
+	ChannelSelectComponentHandler,
+	MentionableSelectComponentHandler,
+	ComponentHandler,
+	ModalCommand,
+	ModalHandler,
+	InteractionHandler,
 } from "./clients/MiniInteraction.js";
-export type {
+export {
 	MessageComponentInteraction,
 	ButtonInteraction,
 	StringSelectInteraction,
@@ -83,20 +83,21 @@ export type {
 	ResolvedUserOption as ComponentResolvedUserOption,
 	ResolvedMentionableOption as ComponentResolvedMentionableOption,
 } from "./utils/MessageComponentInteraction.js";
-export type { ModalSubmitInteraction } from "./utils/ModalSubmitInteraction.js";
+export { ModalSubmitInteraction } from "./utils/ModalSubmitInteraction.js";
 export { RoleConnectionMetadataTypes } from "./types/RoleConnectionMetadataTypes.js";
 export { ChannelType } from "./types/ChannelType.js";
 export {
 	InteractionFollowUpFlags,
 	InteractionReplyFlags,
+	InteractionFlags,
 } from "./types/InteractionFlags.js";
 export { ButtonStyle } from "./types/ButtonStyle.js";
 export { SeparatorSpacingSize } from "./types/SeparatorSpacingSize.js";
 export { TextInputStyle } from "discord-api-types/v10";
 export { MiniPermFlags } from "./types/PermissionFlags.js";
 export type {
-	MiniComponentActionRow,
-	MiniComponentMessageActionRow,
+	ActionRowComponent,
+	MessageActionRowComponent,
 } from "./types/ComponentTypes.js";
 export * from "./builders/index.js";
 export { MiniDataBuilder } from "./database/MiniDataBuilder.js";
