@@ -559,7 +559,7 @@ export interface CommandInteraction
 	): Promise<T>;
 	canRespond?(interactionId: string): boolean;
 	trackResponse?(interactionId: string, token: string, state: 'responded' | 'deferred'): void;
-	logTiming?(interactionId: string, operation: string, startTime: number, success: boolean): void;
+	onAck?(response: APIInteractionResponse): void;
 }
 
 export const CommandInteraction = {};
@@ -577,6 +577,7 @@ export function createCommandInteraction(
 		canRespond?: (interactionId: string) => boolean;
 		trackResponse?: (interactionId: string, token: string, state: 'responded' | 'deferred') => void;
 		logTiming?: (interactionId: string, operation: string, startTime: number, success: boolean) => void;
+		onAck?: (response: APIInteractionResponse) => void;
 	}
 ): CommandInteraction {
 	const options = new CommandInteractionOptionResolver(
@@ -680,8 +681,10 @@ export function createCommandInteraction(
 			// Track response
 			this.trackResponse?.(this.id, this.token, 'responded');
 
+			// Notify acknowledgment
+			this.onAck?.(response);
+
 			// Log timing if debug enabled
-			this.logTiming?.(this.id, 'reply', startTime, true);
 
 			return response;
 		},
@@ -713,7 +716,6 @@ export function createCommandInteraction(
 			this.trackResponse?.(this.id, this.token, 'responded');
 
 			// Log timing if debug enabled
-			this.logTiming?.(this.id, 'editReply', startTime, true);
 
 			return response;
 		},
@@ -733,8 +735,10 @@ export function createCommandInteraction(
 			// Track deferred state
 			this.trackResponse?.(this.id, this.token, 'deferred');
 
+			// Notify acknowledgment
+			this.onAck?.(response);
+
 			// Log timing if debug enabled
-			this.logTiming?.(this.id, 'deferReply', startTime, true);
 
 			return response;
 		},
@@ -800,7 +804,7 @@ export function createCommandInteraction(
 		// Helper methods for state management
 		canRespond: helpers?.canRespond,
 		trackResponse: helpers?.trackResponse,
-		logTiming: helpers?.logTiming,
+		onAck: helpers?.onAck,
 	};
 
 	return commandInteraction;

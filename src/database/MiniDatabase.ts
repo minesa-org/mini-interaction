@@ -105,7 +105,6 @@ export class MiniDatabase {
                                 this.config.collectionName || "data",
                         );
 
-                        console.log("✅ [MiniDatabase] Connected to MongoDB");
                 } catch (err) {
                         console.error(
 				"❌ [MiniDatabase] Failed to connect to MongoDB:",
@@ -184,7 +183,6 @@ export class MiniDatabase {
                                 { upsert: true },
                         );
 
-                        console.log(`✅ [MiniDatabase] Saved data for key "${key}"`);
 			return true;
 		} catch (err) {
 			console.error(
@@ -241,7 +239,6 @@ export class MiniDatabase {
                                 { upsert: true },
                         );
 
-			console.log(`✅ [MiniDatabase] Updated data for key "${key}"`);
 			return true;
 		} catch (err) {
 			console.error(
@@ -266,7 +263,6 @@ export class MiniDatabase {
 
                         await collection.deleteOne({ _id: key });
 
-                        console.log(`✅ [MiniDatabase] Deleted data for key "${key}"`);
 			return true;
 		} catch (err) {
 			console.error(
@@ -283,7 +279,6 @@ export class MiniDatabase {
 	async close(): Promise<void> {
 		if (this.mongoClient) {
 			await this.mongoClient.close();
-			console.log("✅ [MiniDatabase] MongoDB connection closed");
 		}
 	}
 }

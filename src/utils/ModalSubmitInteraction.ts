@@ -25,6 +25,7 @@ export type ModalSubmitInteraction = APIModalSubmitInteraction & {
 	deferReply: (
 		options?: DeferReplyOptions,
 	) => APIInteractionResponseDeferredChannelMessageWithSource;
+	onAck?: (response: APIInteractionResponse) => void;
 	/**
 	 * Helper method to get the value of a text input component by custom_id.
 	 * @param customId - The custom_id of the text input component
@@ -54,6 +55,9 @@ export const ModalSubmitInteraction = {};
  */
 export function createModalSubmitInteraction(
 	interaction: APIModalSubmitInteraction,
+	helpers?: {
+		onAck?: (response: APIInteractionResponse) => void;
+	}
 ): ModalSubmitInteraction {
 	let capturedResponse: APIInteractionResponse | null = null;
 
@@ -74,10 +78,13 @@ export function createModalSubmitInteraction(
 			);
 		}
 
-		return captureResponse({
+		const response = captureResponse({
 			type: InteractionResponseType.ChannelMessageWithSource,
 			data: normalisedData,
 		} satisfies APIInteractionResponseChannelMessageWithSource);
+
+		helpers?.onAck?.(response);
+		return response;
 	};
 
 	const deferReply = (
@@ -95,7 +102,9 @@ export function createModalSubmitInteraction(
 						type: InteractionResponseType.DeferredChannelMessageWithSource,
 				  };
 
-		return captureResponse(response);
+		captureResponse(response);
+		helpers?.onAck?.(response);
+		return response;
 	};
 
 	const getResponse = (): APIInteractionResponse | null => capturedResponse;
@@ -168,6 +177,7 @@ export function createModalSubmitInteraction(
 		getTextInputValue,
 		getTextInputValues,
 		getSelectMenuValues: (customId: string) => selectMenuValues.get(customId),
+		onAck: helpers?.onAck,
 	});
 }
 

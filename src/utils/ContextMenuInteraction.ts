@@ -43,6 +43,7 @@ type ContextMenuInteractionHelpers = {
 			| APIModalInteractionResponseCallbackData
 			| { toJSON(): APIModalInteractionResponseCallbackData },
 	) => APIModalInteractionResponse;
+	onAck?: (response: APIInteractionResponse) => void;
 };
 
 /**
@@ -78,7 +79,11 @@ export type AppCommandInteraction =
 
 export const AppCommandInteraction = {};
 
-function createContextMenuInteractionHelpers(): ContextMenuInteractionHelpers {
+function createContextMenuInteractionHelpers(
+	helpers?: {
+		onAck?: (response: APIInteractionResponse) => void;
+	}
+): ContextMenuInteractionHelpers {
 	let capturedResponse: APIInteractionResponse | null = null;
 
 	const captureResponse = <T extends APIInteractionResponse>(
@@ -128,11 +133,14 @@ function createContextMenuInteractionHelpers(): ContextMenuInteractionHelpers {
 
 	const reply = (
 		data: InteractionMessageData,
-	): APIInteractionResponseChannelMessageWithSource =>
-		createMessageResponse(
+	): APIInteractionResponseChannelMessageWithSource => {
+		const response = createMessageResponse(
 			InteractionResponseType.ChannelMessageWithSource,
 			data,
 		);
+		helpers?.onAck?.(response);
+		return response;
+	};
 
 	const followUp = (
 		data: InteractionMessageData,
@@ -151,10 +159,12 @@ function createContextMenuInteractionHelpers(): ContextMenuInteractionHelpers {
 		options: DeferReplyOptions = {},
 	): APIInteractionResponseDeferredChannelMessageWithSource => {
 		const flags = normaliseMessageFlags(options.flags);
-		return captureResponse({
+		const response = captureResponse({
 			type: InteractionResponseType.DeferredChannelMessageWithSource,
 			data: flags ? { flags } : undefined,
 		});
+		helpers?.onAck?.(response);
+		return response;
 	};
 
 	const showModal = (
@@ -179,6 +189,7 @@ function createContextMenuInteractionHelpers(): ContextMenuInteractionHelpers {
 		editReply,
 		deferReply,
 		showModal,
+		onAck: helpers?.onAck,
 	};
 }
 
@@ -190,8 +201,11 @@ function createContextMenuInteractionHelpers(): ContextMenuInteractionHelpers {
  */
 export function createUserContextMenuInteraction(
 	interaction: APIUserApplicationCommandInteraction,
+	helpers?: {
+		onAck?: (response: APIInteractionResponse) => void;
+	}
 ): UserContextMenuInteraction {
-	return Object.assign(interaction, createContextMenuInteractionHelpers(), {
+	return Object.assign(interaction, createContextMenuInteractionHelpers(helpers), {
 		targetUser: resolveTargetUser(interaction),
 	});
 }
@@ -204,8 +218,11 @@ export function createUserContextMenuInteraction(
  */
 export function createMessageContextMenuInteraction(
         interaction: APIMessageApplicationCommandInteraction,
+        helpers?: {
+                onAck?: (response: APIInteractionResponse) => void;
+        }
 ): MessageContextMenuInteraction {
-        return Object.assign(interaction, createContextMenuInteractionHelpers(), {
+        return Object.assign(interaction, createContextMenuInteractionHelpers(helpers), {
                 targetMessage: resolveTargetMessage(interaction),
         });
 }
@@ -218,8 +235,11 @@ export function createMessageContextMenuInteraction(
  */
 export function createAppCommandInteraction(
         interaction: APIPrimaryEntryPointCommandInteraction,
+        helpers?: {
+                onAck?: (response: APIInteractionResponse) => void;
+        }
 ): AppCommandInteraction {
-        return Object.assign(interaction, createContextMenuInteractionHelpers());
+        return Object.assign(interaction, createContextMenuInteractionHelpers(helpers));
 }
 
 function resolveTargetMessage(

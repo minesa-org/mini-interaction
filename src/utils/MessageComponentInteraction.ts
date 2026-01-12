@@ -63,6 +63,7 @@ type BaseComponentInteractionHelpers = {
 			| APIModalInteractionResponseCallbackData
 			| { toJSON(): APIModalInteractionResponseCallbackData },
 	) => APIModalInteractionResponse;
+	onAck?: (response: APIInteractionResponse) => void;
 };
 
 /**
@@ -208,6 +209,9 @@ export const MessageComponentInteraction = {};
  */
 export function createMessageComponentInteraction(
 	interaction: APIMessageComponentInteraction,
+	helpers?: {
+		onAck?: (response: APIInteractionResponse) => void;
+	}
 ): MessageComponentInteraction {
 	let capturedResponse: APIInteractionResponse | null = null;
 
@@ -228,10 +232,13 @@ export function createMessageComponentInteraction(
 			);
 		}
 
-		return captureResponse({
+		const response = captureResponse({
 			type: InteractionResponseType.ChannelMessageWithSource,
 			data: normalisedData,
 		} satisfies APIInteractionResponseChannelMessageWithSource);
+
+		helpers?.onAck?.(response);
+		return response;
 	};
 
 	const deferReply = (
@@ -249,7 +256,9 @@ export function createMessageComponentInteraction(
 						type: InteractionResponseType.DeferredChannelMessageWithSource,
 				  };
 
-		return captureResponse(response);
+		captureResponse(response);
+		helpers?.onAck?.(response);
+		return response;
 	};
 
 	const update = (
@@ -412,5 +421,6 @@ export function createMessageComponentInteraction(
 		getChannels,
 		getUsers,
 		getMentionables,
+		onAck: helpers?.onAck,
 	});
 }
