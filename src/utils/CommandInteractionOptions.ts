@@ -544,7 +544,7 @@ export interface CommandInteraction
 	edit(data?: InteractionMessageData): APIInteractionResponseUpdateMessage;
 	editReply(
 		data?: InteractionMessageData,
-	): Promise<APIInteractionResponseUpdateMessage>;
+	): Promise<APIInteractionResponseChannelMessageWithSource | APIInteractionResponseUpdateMessage>;
 	deferReply(
 		options?: DeferReplyOptions,
 	): APIInteractionResponseDeferredChannelMessageWithSource;
@@ -739,7 +739,7 @@ export function createCommandInteraction(
 				await this.sendFollowUp(this.token, response, '@original');
 				// If we already sent an ACK (like a DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE), 
 				// we return the original captured response to avoid sending type 4/7 back to the initial POST.
-				return capturedResponse as APIInteractionResponseUpdateMessage;
+				return capturedResponse as APIInteractionResponseChannelMessageWithSource | APIInteractionResponseUpdateMessage;
 			}
 
 			// Track response
