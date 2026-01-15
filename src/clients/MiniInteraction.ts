@@ -2022,12 +2022,12 @@ export class MiniInteraction {
 						commandInteraction.data.type ===
 						ApplicationCommandType.User
 					) {
-						// User context menu command
 						const interactionWithHelpers =
 							createUserContextMenuInteraction(
 								commandInteraction as any,
 								{
 									onAck: (response) => ackResolver?.(response),
+									sendFollowUp,
 								}
 							);
 						response = await command.handler(
@@ -2044,6 +2044,7 @@ export class MiniInteraction {
 								commandInteraction as AppCommandInteraction,
 								{
 									onAck: (response) => ackResolver?.(response),
+									sendFollowUp,
 								}
 							);
 						response = await command.handler(
@@ -2061,6 +2062,7 @@ export class MiniInteraction {
 								commandInteraction as any,
 								{
 									onAck: (response) => ackResolver?.(response),
+									sendFollowUp,
 								}
 							);
 						response = await command.handler(
@@ -2076,6 +2078,10 @@ export class MiniInteraction {
 						resolvedResponse = response ?? null;
 					}
 
+					if (this.timeoutConfig.enableResponseDebugLogging) {
+						console.log(`[MiniInteraction] Command handler finished: "${commandName}"`);
+					}
+
 					return resolvedResponse as APIInteractionResponse;
 				},
 				this.timeoutConfig.initialResponseTimeout,
@@ -2085,6 +2091,10 @@ export class MiniInteraction {
 			);
 
 			const finalResponse = await timeoutWrapper();
+
+			if (this.timeoutConfig.enableResponseDebugLogging) {
+				console.log(`[MiniInteraction] handleApplicationCommand: initial response determined (type=${finalResponse?.type})`);
+			}
 
 			if (!finalResponse) {
 				console.error(
@@ -2144,8 +2154,15 @@ export class MiniInteraction {
 			? `${DISCORD_BASE_URL}/webhooks/${this.applicationId}/${token}/messages/${messageId}`
 			: `${DISCORD_BASE_URL}/webhooks/${this.applicationId}/${token}`;
 		
+		if (this.timeoutConfig.enableResponseDebugLogging) {
+			console.log(`[MiniInteraction] sendFollowUp: id=${messageId || 'new'}, edit=${isEdit}, url=${url}`);
+		}
+
 		// Only send follow-up if there is data to send
 		if (!('data' in response) || !response.data) {
+			if (this.timeoutConfig.enableResponseDebugLogging) {
+				console.warn(`[MiniInteraction] sendFollowUp cancelled: no data in response object`);
+			}
 			return;
 		}
 
@@ -2157,6 +2174,10 @@ export class MiniInteraction {
 				},
 				body: JSON.stringify(response.data),
 			});
+
+			if (this.timeoutConfig.enableResponseDebugLogging) {
+				console.log(`[MiniInteraction] sendFollowUp response: [${fetchResponse.status}] ${fetchResponse.statusText}`);
+			}
 
 			if (!fetchResponse.ok) {
 				const errorBody = await fetchResponse.text();

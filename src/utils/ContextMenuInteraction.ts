@@ -1,40 +1,39 @@
 import {
 	InteractionResponseType,
 	type APIInteractionResponse,
-        type APIInteractionResponseCallbackData,
-        type APIInteractionResponseChannelMessageWithSource,
-        type APIInteractionResponseDeferredChannelMessageWithSource,
-        type APIInteractionResponseUpdateMessage,
-        type APIMessage,
-        type APIMessageApplicationCommandInteraction,
-        type APIModalInteractionResponse,
-        type APIModalInteractionResponseCallbackData,
-        type APIPrimaryEntryPointCommandInteraction,
-        type APIUser,
-        type APIUserApplicationCommandInteraction,
+	type APIInteractionResponseChannelMessageWithSource,
+	type APIInteractionResponseDeferredChannelMessageWithSource,
+	type APIInteractionResponseUpdateMessage,
+	type APIMessage,
+	type APIMessageApplicationCommandInteraction,
+	type APIModalInteractionResponse,
+	type APIModalInteractionResponseCallbackData,
+	type APIPrimaryEntryPointCommandInteraction,
+	type APIUser,
+	type APIUserApplicationCommandInteraction,
 } from "discord-api-types/v10";
 
 import {
 	DeferReplyOptions,
-        InteractionMessageData,
-        normaliseInteractionMessageData,
-        normaliseMessageFlags,
+	InteractionMessageData,
+	normaliseInteractionMessageData,
+	normaliseMessageFlags,
 } from "./interactionMessageHelpers.js";
 
 /**
  * Base helper methods for context menu interactions.
  */
-type ContextMenuInteractionHelpers = {
+export type ContextMenuInteractionHelpers = {
 	getResponse: () => APIInteractionResponse | null;
 	reply: (
 		data: InteractionMessageData,
 	) => APIInteractionResponseChannelMessageWithSource;
 	followUp: (
 		data: InteractionMessageData,
-	) => APIInteractionResponseChannelMessageWithSource;
+	) => Promise<APIInteractionResponseChannelMessageWithSource>;
 	editReply: (
 		data?: InteractionMessageData,
-	) => APIInteractionResponseUpdateMessage;
+	) => Promise<APIInteractionResponseUpdateMessage>;
 	deferReply: (
 		options?: DeferReplyOptions,
 	) => APIInteractionResponseDeferredChannelMessageWithSource;
@@ -44,47 +43,52 @@ type ContextMenuInteractionHelpers = {
 			| { toJSON(): APIModalInteractionResponseCallbackData },
 	) => APIModalInteractionResponse;
 	onAck?: (response: APIInteractionResponse) => void;
+	sendFollowUp?: (token: string, response: APIInteractionResponse, messageId?: string) => Promise<void>;
 };
 
 /**
  * User context menu interaction with helper methods.
  */
-export type UserContextMenuInteraction =
-	APIUserApplicationCommandInteraction &
-		ContextMenuInteractionHelpers & {
-			/** Resolved user targeted by this user context menu command. */
-			targetUser?: APIUser;
-		};
+export type UserContextMenuInteraction = APIUserApplicationCommandInteraction &
+	ContextMenuInteractionHelpers & {
+		/** Resolved user targeted by this user context menu command. */
+		targetUser?: APIUser;
+	};
 
 export const UserContextMenuInteraction = {};
 
 /**
  * Message context menu interaction with helper methods.
  */
-export type MessageContextMenuInteraction =
-        APIMessageApplicationCommandInteraction &
-                ContextMenuInteractionHelpers & {
-                        /** Resolved message targeted by this message context menu command. */
-                        targetMessage?: APIMessage;
-                };
+export type MessageContextMenuInteraction = APIMessageApplicationCommandInteraction &
+	ContextMenuInteractionHelpers & {
+		/** Resolved message targeted by this message context menu command. */
+		targetMessage?: APIMessage;
+	};
 
 export const MessageContextMenuInteraction = {};
 
 /**
  * Primary entry point interaction with helper methods.
  */
-export type AppCommandInteraction =
-        APIPrimaryEntryPointCommandInteraction &
-                ContextMenuInteractionHelpers;
+export type AppCommandInteraction = APIPrimaryEntryPointCommandInteraction &
+	ContextMenuInteractionHelpers;
 
 export const AppCommandInteraction = {};
 
 function createContextMenuInteractionHelpers(
+	interaction:
+		| APIUserApplicationCommandInteraction
+		| APIMessageApplicationCommandInteraction
+		| APIPrimaryEntryPointCommandInteraction,
 	helpers?: {
 		onAck?: (response: APIInteractionResponse) => void;
+		sendFollowUp?: (token: string, response: APIInteractionResponse, messageId?: string) => Promise<void>;
 	}
 ): ContextMenuInteractionHelpers {
 	let capturedResponse: APIInteractionResponse | null = null;
+	let isDeferred = false;
+	let hasResponded = false;
 
 	const captureResponse = <T extends APIInteractionResponse>(
 		response: T,
@@ -138,22 +142,37 @@ function createContextMenuInteractionHelpers(
 			InteractionResponseType.ChannelMessageWithSource,
 			data,
 		);
+		hasResponded = true;
 		helpers?.onAck?.(response);
 		return response;
 	};
 
-	const followUp = (
+	const followUp = async (
 		data: InteractionMessageData,
-	): APIInteractionResponseChannelMessageWithSource =>
-		createMessageResponse(
+	): Promise<APIInteractionResponseChannelMessageWithSource> => {
+		const response = createMessageResponse(
 			InteractionResponseType.ChannelMessageWithSource,
 			data,
 		);
+		if (helpers?.sendFollowUp) {
+			await helpers.sendFollowUp(interaction.token, response, '');
+		}
+		return response;
+	};
 
-	const editReply = (
+	const editReply = async (
 		data?: InteractionMessageData,
-	): APIInteractionResponseUpdateMessage =>
-		createMessageResponse(InteractionResponseType.UpdateMessage, data);
+	): Promise<APIInteractionResponseUpdateMessage> => {
+		const response = createMessageResponse(
+			InteractionResponseType.UpdateMessage,
+			data,
+		);
+		if (helpers?.sendFollowUp && (isDeferred || hasResponded)) {
+			await helpers.sendFollowUp(interaction.token, response, '@original');
+		}
+		hasResponded = true;
+		return response;
+	};
 
 	const deferReply = (
 		options: DeferReplyOptions = {},
@@ -163,6 +182,7 @@ function createContextMenuInteractionHelpers(
 			type: InteractionResponseType.DeferredChannelMessageWithSource,
 			data: flags ? { flags } : undefined,
 		});
+		isDeferred = true;
 		helpers?.onAck?.(response);
 		return response;
 	};
@@ -176,7 +196,7 @@ function createContextMenuInteractionHelpers(
 			typeof data === "object" && "toJSON" in data ? data.toJSON() : data;
 		return captureResponse({
 			type: InteractionResponseType.Modal,
-			data: modalData,
+			data: modalData as APIModalInteractionResponseCallbackData,
 		});
 	};
 
@@ -189,7 +209,7 @@ function createContextMenuInteractionHelpers(
 		editReply,
 		deferReply,
 		showModal,
-		onAck: helpers?.onAck,
+		sendFollowUp: helpers?.sendFollowUp,
 	};
 }
 
@@ -197,49 +217,66 @@ function createContextMenuInteractionHelpers(
  * Wraps a raw user context menu interaction with helper methods.
  *
  * @param interaction - The raw user context menu interaction payload from Discord.
+ * @param helpers - Optional callback helpers.
  * @returns A helper-augmented interaction object.
  */
 export function createUserContextMenuInteraction(
 	interaction: APIUserApplicationCommandInteraction,
 	helpers?: {
 		onAck?: (response: APIInteractionResponse) => void;
+		sendFollowUp?: (token: string, response: APIInteractionResponse, messageId?: string) => Promise<void>;
 	}
 ): UserContextMenuInteraction {
-	return Object.assign(interaction, createContextMenuInteractionHelpers(helpers), {
-		targetUser: resolveTargetUser(interaction),
-	});
+	return Object.assign(
+		interaction,
+		createContextMenuInteractionHelpers(interaction, helpers),
+		{
+			targetUser: resolveTargetUser(interaction),
+		}
+	);
 }
 
 /**
  * Wraps a raw message context menu interaction with helper methods.
  *
  * @param interaction - The raw message context menu interaction payload from Discord.
+ * @param helpers - Optional callback helpers.
  * @returns A helper-augmented interaction object.
  */
 export function createMessageContextMenuInteraction(
-        interaction: APIMessageApplicationCommandInteraction,
-        helpers?: {
-                onAck?: (response: APIInteractionResponse) => void;
-        }
+	interaction: APIMessageApplicationCommandInteraction,
+	helpers?: {
+		onAck?: (response: APIInteractionResponse) => void;
+		sendFollowUp?: (token: string, response: APIInteractionResponse, messageId?: string) => Promise<void>;
+	}
 ): MessageContextMenuInteraction {
-        return Object.assign(interaction, createContextMenuInteractionHelpers(helpers), {
-                targetMessage: resolveTargetMessage(interaction),
-        });
+	return Object.assign(
+		interaction,
+		createContextMenuInteractionHelpers(interaction, helpers),
+		{
+			targetMessage: resolveTargetMessage(interaction),
+		}
+	);
 }
 
 /**
  * Wraps a raw primary entry point interaction with helper methods.
  *
  * @param interaction - The raw primary entry point interaction payload from Discord.
+ * @param helpers - Optional callback helpers.
  * @returns A helper-augmented interaction object.
  */
 export function createAppCommandInteraction(
-        interaction: APIPrimaryEntryPointCommandInteraction,
-        helpers?: {
-                onAck?: (response: APIInteractionResponse) => void;
-        }
+	interaction: APIPrimaryEntryPointCommandInteraction,
+	helpers?: {
+		onAck?: (response: APIInteractionResponse) => void;
+		sendFollowUp?: (token: string, response: APIInteractionResponse, messageId?: string) => Promise<void>;
+	}
 ): AppCommandInteraction {
-        return Object.assign(interaction, createContextMenuInteractionHelpers(helpers));
+	return Object.assign(
+		interaction,
+		createContextMenuInteractionHelpers(interaction, helpers)
+	);
 }
 
 function resolveTargetMessage(
