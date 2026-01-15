@@ -2024,10 +2024,12 @@ export class MiniInteraction {
 							createUserContextMenuInteraction(
 								commandInteraction as any,
 								{
-									onAck: (response) => ackResolver?.(response),
-									sendFollowUp,
-								}
-							);
+								onAck: (response) => ackResolver?.(response),
+								sendFollowUp,
+								canRespond: (id) => this.canRespond(id),
+								trackResponse: (id, token, state) => this.trackInteractionState(id, token, state),
+							}
+						);
 						response = await command.handler(
 							interactionWithHelpers as any,
 						);
@@ -2041,10 +2043,12 @@ export class MiniInteraction {
 							createAppCommandInteraction(
 								commandInteraction as AppCommandInteraction,
 								{
-									onAck: (response) => ackResolver?.(response),
-									sendFollowUp,
-								}
-							);
+								onAck: (response) => ackResolver?.(response),
+								sendFollowUp,
+								canRespond: (id) => this.canRespond(id),
+								trackResponse: (id, token, state) => this.trackInteractionState(id, token, state),
+							}
+						);
 						response = await command.handler(
 							interactionWithHelpers as any,
 						);

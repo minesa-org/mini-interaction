@@ -44,6 +44,8 @@ export type ContextMenuInteractionHelpers = {
 	) => APIModalInteractionResponse;
 	onAck?: (response: APIInteractionResponse) => void;
 	sendFollowUp?: (token: string, response: APIInteractionResponse, messageId?: string) => Promise<void>;
+	canRespond?: (interactionId: string) => boolean;
+	trackResponse?: (interactionId: string, token: string, state: 'responded' | 'deferred') => void;
 };
 
 /**
@@ -84,6 +86,8 @@ function createContextMenuInteractionHelpers(
 	helpers?: {
 		onAck?: (response: APIInteractionResponse) => void;
 		sendFollowUp?: (token: string, response: APIInteractionResponse, messageId?: string) => Promise<void>;
+		canRespond?: (interactionId: string) => boolean;
+		trackResponse?: (interactionId: string, token: string, state: 'responded' | 'deferred') => void;
 	}
 ): ContextMenuInteractionHelpers {
 	let capturedResponse: APIInteractionResponse | null = null;
@@ -169,6 +173,7 @@ function createContextMenuInteractionHelpers(
 		);
 		if (helpers?.sendFollowUp && (isDeferred || hasResponded)) {
 			await helpers.sendFollowUp(interaction.token, response, '@original');
+			return capturedResponse as APIInteractionResponseUpdateMessage;
 		}
 		hasResponded = true;
 		return response;
@@ -209,7 +214,10 @@ function createContextMenuInteractionHelpers(
 		editReply,
 		deferReply,
 		showModal,
+		onAck: helpers?.onAck,
 		sendFollowUp: helpers?.sendFollowUp,
+		canRespond: helpers?.canRespond,
+		trackResponse: helpers?.trackResponse,
 	};
 }
 
@@ -225,6 +233,8 @@ export function createUserContextMenuInteraction(
 	helpers?: {
 		onAck?: (response: APIInteractionResponse) => void;
 		sendFollowUp?: (token: string, response: APIInteractionResponse, messageId?: string) => Promise<void>;
+		canRespond?: (interactionId: string) => boolean;
+		trackResponse?: (interactionId: string, token: string, state: 'responded' | 'deferred') => void;
 	}
 ): UserContextMenuInteraction {
 	return Object.assign(
@@ -248,6 +258,8 @@ export function createMessageContextMenuInteraction(
 	helpers?: {
 		onAck?: (response: APIInteractionResponse) => void;
 		sendFollowUp?: (token: string, response: APIInteractionResponse, messageId?: string) => Promise<void>;
+		canRespond?: (interactionId: string) => boolean;
+		trackResponse?: (interactionId: string, token: string, state: 'responded' | 'deferred') => void;
 	}
 ): MessageContextMenuInteraction {
 	return Object.assign(
@@ -271,6 +283,8 @@ export function createAppCommandInteraction(
 	helpers?: {
 		onAck?: (response: APIInteractionResponse) => void;
 		sendFollowUp?: (token: string, response: APIInteractionResponse, messageId?: string) => Promise<void>;
+		canRespond?: (interactionId: string) => boolean;
+		trackResponse?: (interactionId: string, token: string, state: 'responded' | 'deferred') => void;
 	}
 ): AppCommandInteraction {
 	return Object.assign(

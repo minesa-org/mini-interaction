@@ -715,14 +715,31 @@ export function createCommandInteraction(
 				throw new Error('Interaction cannot edit reply: expired');
 			}
 
-			const response = createMessageResponse(
-				InteractionResponseType.UpdateMessage,
-				data,
-			);
+			// Slash commands (type 2) MUST use ChannelMessageWithSource (type 4) for their initial response,
+			// or UpdateMessage (type 7) if they are updating a component interaction message.
+			// However, for as-yet-unresponded slash commands, we need type 4.
+			const interactionAny = interaction as any;
+			const isComponent = interactionAny.type === InteractionType.MessageComponent;
+
+			let response: APIInteractionResponseChannelMessageWithSource | APIInteractionResponseUpdateMessage;
+			if (isComponent) {
+				response = createMessageResponse(
+					InteractionResponseType.UpdateMessage,
+					data,
+				);
+			} else {
+				response = createMessageResponse(
+					InteractionResponseType.ChannelMessageWithSource,
+					data!,
+				);
+			}
 
 			// If it's already deferred or responded, we MUST use a webhook
 			if (this.sendFollowUp && (isDeferred || hasResponded)) {
 				await this.sendFollowUp(this.token, response, '@original');
+				// If we already sent an ACK (like a DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE), 
+				// we return the original captured response to avoid sending type 4/7 back to the initial POST.
+				return capturedResponse as APIInteractionResponseUpdateMessage;
 			}
 
 			// Track response
