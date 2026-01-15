@@ -1,10 +1,10 @@
 import {
+	ComponentType,
 	InteractionResponseType,
 	type APIInteractionResponse,
 	type APIInteractionResponseChannelMessageWithSource,
 	type APIInteractionResponseDeferredChannelMessageWithSource,
 	type APIModalSubmitInteraction,
-	type ModalSubmitComponent,
 } from "discord-api-types/v10";
 
 import {
@@ -25,41 +25,35 @@ export type ModalSubmitInteraction = APIModalSubmitInteraction & {
 	deferReply: (
 		options?: DeferReplyOptions,
 	) => APIInteractionResponseDeferredChannelMessageWithSource;
-	onAck?: (response: APIInteractionResponse) => void;
 	/**
-	 * Helper method to get the value of a text input component by custom_id.
-	 * @param customId - The custom_id of the text input component
-	 * @returns The value of the text input, or undefined if not found
+	 * Helper method to get the value of a text input component by its custom ID.
 	 */
-	getTextInputValue: (customId: string) => string | undefined;
+	getTextFieldValue: (customId: string) => string | undefined;
 	/**
-	 * Helper method to get all text input values as a map.
-	 * @returns A map of custom_id to value for all text inputs
+	 * Finalise the interaction response via a webhook follow-up.
+	 * This is automatically called by reply() if the interaction is deferred.
 	 */
-	getTextInputValues: () => Map<string, string>;
-	/**
-	 * Helper method to get the selected values of a select menu component by custom_id.
-	 * @param customId - The custom_id of the select menu component
-	 * @returns The selected values of the select menu, or undefined if not found
-	 */
-	getSelectMenuValues: (customId: string) => string[] | undefined;
-};
+	sendFollowUp?: (token: string, response: APIInteractionResponse) => void;
+}
 
 export const ModalSubmitInteraction = {};
 
 /**
- * Wraps a raw modal submit interaction with helper methods.
+ * Wraps a raw modal submit interaction with helper methods mirroring Discord's expected responses.
  *
  * @param interaction - The raw interaction payload from Discord.
+ * @param helpers - Optional callback to capture the final interaction response.
  * @returns A helper-augmented interaction object.
  */
 export function createModalSubmitInteraction(
 	interaction: APIModalSubmitInteraction,
 	helpers?: {
 		onAck?: (response: APIInteractionResponse) => void;
+		sendFollowUp?: (token: string, response: APIInteractionResponse) => void;
 	}
 ): ModalSubmitInteraction {
 	let capturedResponse: APIInteractionResponse | null = null;
+	let isDeferred = false;
 
 	const captureResponse = <T extends APIInteractionResponse>(
 		response: T,
@@ -74,16 +68,21 @@ export function createModalSubmitInteraction(
 		const normalisedData = normaliseInteractionMessageData(data);
 		if (!normalisedData) {
 			throw new Error(
-				"[MiniInteraction] Modal submit replies require response data to be provided.",
+				"[MiniInteraction] Modal replies require response data to be provided.",
 			);
 		}
 
 		const response = captureResponse({
 			type: InteractionResponseType.ChannelMessageWithSource,
 			data: normalisedData,
-		} satisfies APIInteractionResponseChannelMessageWithSource);
+		});
 
-		helpers?.onAck?.(response);
+		if (isDeferred && helpers?.sendFollowUp) {
+			helpers.sendFollowUp(interaction.token, response);
+		} else {
+			helpers?.onAck?.(response);
+		}
+
 		return response;
 	};
 
@@ -103,81 +102,34 @@ export function createModalSubmitInteraction(
 				  };
 
 		captureResponse(response);
+		isDeferred = true;
 		helpers?.onAck?.(response);
 		return response;
 	};
 
 	const getResponse = (): APIInteractionResponse | null => capturedResponse;
 
-	// Helper to extract text input values from modal components
-	const extractTextInputs = (): Map<string, string> => {
-		const textInputs = new Map<string, string>();
-
-		for (const component of interaction.data.components) {
-			// Handle action rows
-			if ("components" in component && Array.isArray(component.components)) {
-				for (const child of component.components) {
-					if ("value" in child && "custom_id" in child) {
-						textInputs.set(child.custom_id, child.value);
+	const getTextFieldValue = (customId: string): string | undefined => {
+		for (const actionRow of interaction.data.components) {
+			if ("components" in actionRow && Array.isArray(actionRow.components)) {
+				for (const component of actionRow.components) {
+					if (
+						component.type === ComponentType.TextInput &&
+						component.custom_id === customId
+					) {
+						return component.value;
 					}
 				}
 			}
-			// Handle labeled components
-			else if ("component" in component) {
-				const labeledComponent = component.component as ModalSubmitComponent;
-				if ("value" in labeledComponent && "custom_id" in labeledComponent) {
-					textInputs.set(labeledComponent.custom_id, labeledComponent.value);
-				}
-			}
 		}
-
-		return textInputs;
-	};
-
-	// Helper to extract select menu values from modal components
-	const extractSelectMenuValues = (): Map<string, string[]> => {
-		const selectMenuValues = new Map<string, string[]>();
-
-		for (const component of interaction.data.components) {
-			// Handle action rows
-			if ("components" in component && Array.isArray(component.components)) {
-				for (const child of component.components) {
-					if ("values" in child && "custom_id" in child && Array.isArray(child.values)) {
-						selectMenuValues.set(child.custom_id, child.values);
-					}
-				}
-			}
-			// Handle labeled components (unlikely for select menus but good for completeness if spec allows)
-			else if ("component" in component) {
-				const labeledComponent = component.component as any; // Using any as ModalSubmitComponent might not cover select menus fully in types yet or strictness varies
-				if ("values" in labeledComponent && "custom_id" in labeledComponent && Array.isArray(labeledComponent.values)) {
-					selectMenuValues.set(labeledComponent.custom_id, labeledComponent.values);
-				}
-			}
-		}
-
-		return selectMenuValues;
-	};
-
-	const textInputValues = extractTextInputs();
-	const selectMenuValues = extractSelectMenuValues();
-
-	const getTextInputValue = (customId: string): string | undefined => {
-		return textInputValues.get(customId);
-	};
-
-	const getTextInputValues = (): Map<string, string> => {
-		return new Map(textInputValues);
+		return undefined;
 	};
 
 	return Object.assign(interaction, {
 		reply,
 		deferReply,
 		getResponse,
-		getTextInputValue,
-		getTextInputValues,
-		getSelectMenuValues: (customId: string) => selectMenuValues.get(customId),
-		onAck: helpers?.onAck,
+		getTextFieldValue,
+		sendFollowUp: helpers?.sendFollowUp,
 	});
 }
-

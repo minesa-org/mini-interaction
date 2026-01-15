@@ -64,6 +64,7 @@ type BaseComponentInteractionHelpers = {
 			| { toJSON(): APIModalInteractionResponseCallbackData },
 	) => APIModalInteractionResponse;
 	onAck?: (response: APIInteractionResponse) => void;
+	sendFollowUp?: (token: string, response: APIInteractionResponse) => void;
 };
 
 /**
@@ -167,6 +168,11 @@ export type MessageComponentInteraction = APIMessageComponentInteraction & {
 			| { toJSON(): APIModalInteractionResponseCallbackData },
 	) => APIModalInteractionResponse;
 	/**
+	 * Finalise the interaction response via a webhook follow-up.
+	 * This is automatically called by reply() and update() if the interaction is deferred.
+	 */
+	sendFollowUp?: (token: string, response: APIInteractionResponse) => void;
+	/**
 	 * The selected values from a select menu interaction.
 	 * This property is only present for select menu interactions.
 	 * For button interactions, this will be undefined.
@@ -211,9 +217,11 @@ export function createMessageComponentInteraction(
 	interaction: APIMessageComponentInteraction,
 	helpers?: {
 		onAck?: (response: APIInteractionResponse) => void;
+		sendFollowUp?: (token: string, response: APIInteractionResponse) => void;
 	}
 ): MessageComponentInteraction {
 	let capturedResponse: APIInteractionResponse | null = null;
+	let isDeferred = false;
 
 	const captureResponse = <T extends APIInteractionResponse>(
 		response: T,
@@ -237,7 +245,12 @@ export function createMessageComponentInteraction(
 			data: normalisedData,
 		} satisfies APIInteractionResponseChannelMessageWithSource);
 
-		helpers?.onAck?.(response);
+		if (isDeferred && helpers?.sendFollowUp) {
+			helpers.sendFollowUp(interaction.token, response);
+		} else {
+			helpers?.onAck?.(response);
+		}
+
 		return response;
 	};
 
@@ -257,6 +270,7 @@ export function createMessageComponentInteraction(
 				  };
 
 		captureResponse(response);
+		isDeferred = true;
 		helpers?.onAck?.(response);
 		return response;
 	};
@@ -275,13 +289,21 @@ export function createMessageComponentInteraction(
 					type: InteractionResponseType.UpdateMessage,
 			  };
 
+		if (isDeferred && helpers?.sendFollowUp) {
+			helpers.sendFollowUp(interaction.token, response);
+		}
+
 		return captureResponse(response);
 	};
 
-	const deferUpdate = (): APIInteractionResponseDeferredMessageUpdate =>
-		captureResponse({
+	const deferUpdate = (): APIInteractionResponseDeferredMessageUpdate => {
+		const response = captureResponse({
 			type: InteractionResponseType.DeferredMessageUpdate,
 		});
+		isDeferred = true;
+		helpers?.onAck?.(response);
+		return response;
+	};
 
 	const showModal = (
 		data:
@@ -422,5 +444,6 @@ export function createMessageComponentInteraction(
 		getUsers,
 		getMentionables,
 		onAck: helpers?.onAck,
+		sendFollowUp: helpers?.sendFollowUp,
 	});
 }

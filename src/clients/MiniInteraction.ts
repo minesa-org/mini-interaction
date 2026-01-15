@@ -1803,9 +1803,14 @@ export class MiniInteraction {
 				ackResolver = resolve;
 			});
 
+			// Helper to send follow-up responses via webhooks
+			const sendFollowUp = (token: string, data: APIInteractionResponse) =>
+				this.sendFollowUp(token, data);
+
 			const interactionWithHelpers =
 				createMessageComponentInteraction(interaction, {
 					onAck: (response) => ackResolver?.(response),
+					sendFollowUp,
 				});
 
 			// Wrap component handler with timeout and acknowledgment
@@ -1891,9 +1896,14 @@ export class MiniInteraction {
 				ackResolver = resolve;
 			});
 
+			// Helper to send follow-up responses via webhooks
+			const sendFollowUp = (token: string, data: APIInteractionResponse) => 
+				this.sendFollowUp(token, data);
+
 			const interactionWithHelpers =
 				createModalSubmitInteraction(interaction, {
 					onAck: (response) => ackResolver?.(response),
+					sendFollowUp,
 				});
 
 			// Wrap modal handler with timeout and acknowledgment
@@ -1987,6 +1997,10 @@ export class MiniInteraction {
 				ackResolver = resolve;
 			});
 
+			// Helper to send follow-up responses via webhooks
+			const sendFollowUp = (token: string, data: APIInteractionResponse) =>
+				this.sendFollowUp(token, data);
+
 			// Create a timeout wrapper for the command handler
 			const timeoutWrapper = createTimeoutWrapper(
 				async () => {
@@ -2001,6 +2015,7 @@ export class MiniInteraction {
 								canRespond: (id) => this.canRespond(id),
 								trackResponse: (id, token, state) => this.trackInteractionState(id, token, state),
 								onAck: (response) => ackResolver?.(response),
+								sendFollowUp,
 							}
 						);
 						response = await command.handler(
@@ -2117,6 +2132,45 @@ export class MiniInteraction {
 					error: `[MiniInteraction] Command "${commandName}" failed: ${errorMessage}`,
 				},
 			};
+		}
+	}
+
+	/**
+	 * Sends a follow-up response or edits an existing response via Discord's interaction webhooks.
+	 * This is used for interactions that have already been acknowledged (e.g., via deferReply).
+	 */
+	private async sendFollowUp(
+		token: string,
+		response: APIInteractionResponse,
+	): Promise<void> {
+		const url = `${DISCORD_BASE_URL}/webhooks/${this.applicationId}/${token}/messages/@original`;
+		
+		// Only send follow-up if there is data to send
+		if (!('data' in response) || !response.data) {
+			return;
+		}
+
+		try {
+			const fetchResponse = await this.fetchImpl(url, {
+				method: "PATCH",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(response.data),
+			});
+
+			if (!fetchResponse.ok) {
+				const errorBody = await fetchResponse.text();
+				console.error(
+					`[MiniInteraction] Failed to send follow-up response: [${fetchResponse.status}] ${errorBody}`,
+				);
+			}
+		} catch (error) {
+			console.error(
+				`[MiniInteraction] Error sending follow-up response: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
 		}
 	}
 }

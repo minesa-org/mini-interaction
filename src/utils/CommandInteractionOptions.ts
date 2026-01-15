@@ -560,6 +560,7 @@ export interface CommandInteraction
 	canRespond?(interactionId: string): boolean;
 	trackResponse?(interactionId: string, token: string, state: 'responded' | 'deferred'): void;
 	onAck?(response: APIInteractionResponse): void;
+	sendFollowUp?(token: string, response: APIInteractionResponse): void;
 }
 
 export const CommandInteraction = {};
@@ -578,6 +579,7 @@ export function createCommandInteraction(
 		trackResponse?: (interactionId: string, token: string, state: 'responded' | 'deferred') => void;
 		logTiming?: (interactionId: string, operation: string, startTime: number, success: boolean) => void;
 		onAck?: (response: APIInteractionResponse) => void;
+		sendFollowUp?: (token: string, response: APIInteractionResponse) => void;
 	}
 ): CommandInteraction {
 	const options = new CommandInteractionOptionResolver(
@@ -672,7 +674,6 @@ export function createCommandInteraction(
 				throw new Error('Interaction cannot respond: already responded or expired');
 			}
 
-			const startTime = Date.now();
 			const response = createMessageResponse(
 				InteractionResponseType.ChannelMessageWithSource,
 				data,
@@ -684,15 +685,19 @@ export function createCommandInteraction(
 			// Notify acknowledgment
 			this.onAck?.(response);
 
-			// Log timing if debug enabled
-
 			return response;
 		},
 		followUp(data) {
-			return createMessageResponse(
+			const response = createMessageResponse(
 				InteractionResponseType.ChannelMessageWithSource,
 				data,
 			);
+			
+			if (this.sendFollowUp) {
+				this.sendFollowUp(this.token, response);
+			}
+
+			return response;
 		},
 		edit(data) {
 			return createMessageResponse(
@@ -706,16 +711,18 @@ export function createCommandInteraction(
 				throw new Error('Interaction cannot edit reply: already responded, expired, or not deferred');
 			}
 
-			const startTime = Date.now();
 			const response = createMessageResponse(
 				InteractionResponseType.UpdateMessage,
 				data,
 			);
 
+			// If it's already deferred or responded, we MUST use a webhook
+			if (this.sendFollowUp) {
+				this.sendFollowUp(this.token, response);
+			}
+
 			// Track response
 			this.trackResponse?.(this.id, this.token, 'responded');
-
-			// Log timing if debug enabled
 
 			return response;
 		},
@@ -725,7 +732,6 @@ export function createCommandInteraction(
 				throw new Error('Interaction cannot defer: already responded or expired');
 			}
 
-			const startTime = Date.now();
 			const response = createDeferredResponse(
 				options?.flags !== undefined
 					? { flags: options.flags }
@@ -737,8 +743,6 @@ export function createCommandInteraction(
 
 			// Notify acknowledgment
 			this.onAck?.(response);
-
-			// Log timing if debug enabled
 
 			return response;
 		},
