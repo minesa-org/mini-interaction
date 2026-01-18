@@ -422,13 +422,9 @@ export interface CommandInteraction
 	reply(
 		data: InteractionMessageData,
 	): APIInteractionResponseChannelMessageWithSource;
-	followUp(
-		data: InteractionMessageData,
-	): Promise<void>;
 	edit(data?: InteractionMessageData): APIInteractionResponseUpdateMessage;
-	editReply(
-		data?: InteractionMessageData,
-	): Promise<void>;
+	followUp(data: InteractionMessageData): Promise<void>;
+	editReply(data?: InteractionMessageData): Promise<void>;
 	deferReply(
 		options?: DeferReplyOptions,
 	): APIInteractionResponseDeferredChannelMessageWithSource;

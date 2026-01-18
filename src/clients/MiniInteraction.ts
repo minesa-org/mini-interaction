@@ -254,10 +254,10 @@ export type DiscordOAuthCallbackOptions = {
 		request: IncomingMessage,
 	) => Promise<boolean> | boolean;
 	successRedirect?:
-		| string
-		| ((
-				context: DiscordOAuthAuthorizeContext,
-		  ) => string | null | undefined);
+	| string
+	| ((
+		context: DiscordOAuthAuthorizeContext,
+	) => string | null | undefined);
 	templates?: Partial<DiscordOAuthCallbackTemplates>;
 };
 
@@ -889,15 +889,15 @@ export class MiniInteraction {
 		if (
 			this.timeoutConfig.enableTimeoutWarnings &&
 			totalProcessingTime >
-				this.timeoutConfig.initialResponseTimeout * 0.9
+			this.timeoutConfig.initialResponseTimeout * 0.9
 		) {
 			console.warn(
 				`[MiniInteraction] CRITICAL: Interaction processing took ${totalProcessingTime}ms ` +
-					`(${Math.round(
-						(totalProcessingTime / 3000) * 100,
-					)}% of Discord's 3-second limit). ` +
-					`This may cause "didn't respond in time" errors. ` +
-					`Consider optimizing or using deferReply() for slow operations.`,
+				`(${Math.round(
+					(totalProcessingTime / 3000) * 100,
+				)}% of Discord's 3-second limit). ` +
+				`This may cause "didn't respond in time" errors. ` +
+				`Consider optimizing or using deferReply() for slow operations.`,
 			);
 		}
 
@@ -1842,7 +1842,7 @@ export class MiniInteraction {
 			if (errorMessage.includes("Handler timeout")) {
 				console.error(
 					`[MiniInteraction] CRITICAL: Component "${customId}" timed out. ` +
-						`This will result in "didn't respond in time" errors for users.`,
+					`This will result in "didn't respond in time" errors for users.`,
 				);
 			}
 
@@ -1891,7 +1891,7 @@ export class MiniInteraction {
 			});
 
 			// Helper to send follow-up responses via webhooks
-			const sendFollowUp = (token: string, data: APIInteractionResponse, messageId: string = '@original') => 
+			const sendFollowUp = (token: string, data: APIInteractionResponse, messageId: string = '@original') =>
 				this.sendFollowUp(token, data, messageId);
 
 			const interactionWithHelpers =
@@ -1934,7 +1934,7 @@ export class MiniInteraction {
 			if (errorMessage.includes("Handler timeout")) {
 				console.error(
 					`[MiniInteraction] CRITICAL: Modal "${customId}" timed out. ` +
-						`This will result in "didn't respond in time" errors for users.`,
+					`This will result in "didn't respond in time" errors for users.`,
 				);
 			}
 
@@ -1991,7 +1991,7 @@ export class MiniInteraction {
 			});
 
 			// Helper to send follow-up responses via webhooks
-			const sendFollowUp = (token: string, data: APIInteractionResponse, messageId: string = '@original') => 
+			const sendFollowUp = (token: string, data: APIInteractionResponse, messageId: string = '@original') =>
 				this.sendFollowUp(token, data, messageId);
 
 			// Create a timeout wrapper for the command handler
@@ -2008,7 +2008,7 @@ export class MiniInteraction {
 								canRespond: (id) => this.canRespond(id),
 								trackResponse: (id, token, state) => this.trackInteractionState(id, token, state),
 								onAck: (response) => ackResolver?.(response),
-								sendFollowUp,
+								sendFollowUp: (token, response, messageId) => this.sendFollowUp(token, response, messageId),
 							}
 						);
 						response = await command.handler(
@@ -2024,12 +2024,12 @@ export class MiniInteraction {
 							createUserContextMenuInteraction(
 								commandInteraction as any,
 								{
-								onAck: (response) => ackResolver?.(response),
-								sendFollowUp,
-								canRespond: (id) => this.canRespond(id),
-								trackResponse: (id, token, state) => this.trackInteractionState(id, token, state),
-							}
-						);
+									onAck: (response) => ackResolver?.(response),
+									sendFollowUp,
+									canRespond: (id) => this.canRespond(id),
+									trackResponse: (id, token, state) => this.trackInteractionState(id, token, state),
+								}
+							);
 						response = await command.handler(
 							interactionWithHelpers as any,
 						);
@@ -2043,12 +2043,12 @@ export class MiniInteraction {
 							createAppCommandInteraction(
 								commandInteraction as AppCommandInteraction,
 								{
-								onAck: (response) => ackResolver?.(response),
-								sendFollowUp,
-								canRespond: (id) => this.canRespond(id),
-								trackResponse: (id, token, state) => this.trackInteractionState(id, token, state),
-							}
-						);
+									onAck: (response) => ackResolver?.(response),
+									sendFollowUp,
+									canRespond: (id) => this.canRespond(id),
+									trackResponse: (id, token, state) => this.trackInteractionState(id, token, state),
+								}
+							);
 						response = await command.handler(
 							interactionWithHelpers as any,
 						);
@@ -2103,8 +2103,8 @@ export class MiniInteraction {
 			if (!finalResponse) {
 				console.error(
 					`[MiniInteraction] Command "${commandName}" did not return a response. ` +
-						"This indicates the handler completed but no response was generated. " +
-						"Check that deferReply(), reply(), showModal(), or a direct response is returned.",
+					"This indicates the handler completed but no response was generated. " +
+					"Check that deferReply(), reply(), showModal(), or a direct response is returned.",
 				);
 				return {
 					status: 500,
@@ -2129,9 +2129,9 @@ export class MiniInteraction {
 			if (errorMessage.includes("Handler timeout")) {
 				console.error(
 					`[MiniInteraction] CRITICAL: Command "${commandName}" timed out before responding to Discord. ` +
-						`This will result in "didn't respond in time" errors for users. ` +
-						`Handler took longer than ${this.timeoutConfig.initialResponseTimeout}ms to complete. ` +
-						`Consider using deferReply() for operations that take more than 3 seconds.`,
+					`This will result in "didn't respond in time" errors for users. ` +
+					`Handler took longer than ${this.timeoutConfig.initialResponseTimeout}ms to complete. ` +
+					`Consider using deferReply() for operations that take more than 3 seconds.`,
 				);
 			}
 
@@ -2157,7 +2157,7 @@ export class MiniInteraction {
 		const url = isEdit
 			? `${DISCORD_BASE_URL}/webhooks/${this.applicationId}/${token}/messages/${messageId}`
 			: `${DISCORD_BASE_URL}/webhooks/${this.applicationId}/${token}`;
-		
+
 		if (this.timeoutConfig.enableResponseDebugLogging) {
 			console.log(`[MiniInteraction] sendFollowUp: id=${messageId || 'new'}, edit=${isEdit}, url=${url}`);
 		}
@@ -2191,8 +2191,7 @@ export class MiniInteraction {
 			}
 		} catch (error) {
 			console.error(
-				`[MiniInteraction] Error sending follow-up response: ${
-					error instanceof Error ? error.message : String(error)
+				`[MiniInteraction] Error sending follow-up response: ${error instanceof Error ? error.message : String(error)
 				}`,
 			);
 		}
