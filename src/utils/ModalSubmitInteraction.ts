@@ -39,6 +39,12 @@ export type ModalSubmitInteraction = APIModalSubmitInteraction & {
 	 */
 	canRespond?: (interactionId: string) => boolean;
 	trackResponse?: (interactionId: string, token: string, state: 'responded' | 'deferred') => void;
+	/**
+	 * Edit the initial interaction response.
+	 */
+	editReply: (
+		data?: InteractionMessageData,
+	) => Promise<APIInteractionResponseChannelMessageWithSource>;
 }
 
 export const ModalSubmitInteraction = {};
@@ -85,7 +91,25 @@ export function createModalSubmitInteraction(
 		});
 
 		if (isDeferred && helpers?.sendFollowUp) {
-			await helpers.sendFollowUp(interaction.token, response, '');
+			await helpers.sendFollowUp(interaction.token, response, '@original');
+		} else {
+			helpers?.onAck?.(response);
+		}
+
+		return response;
+	};
+
+	const editReply = async (
+		data?: InteractionMessageData,
+	): Promise<APIInteractionResponseChannelMessageWithSource> => {
+		const normalisedData = normaliseInteractionMessageData(data);
+		const response = captureResponse({
+			type: InteractionResponseType.ChannelMessageWithSource,
+			data: normalisedData ?? { content: "" },
+		});
+
+		if (helpers?.sendFollowUp) {
+			await helpers.sendFollowUp(interaction.token, response, '@original');
 		} else {
 			helpers?.onAck?.(response);
 		}
@@ -135,6 +159,7 @@ export function createModalSubmitInteraction(
 	return Object.assign(interaction, {
 		reply,
 		deferReply,
+		editReply,
 		getResponse,
 		getTextFieldValue,
 		sendFollowUp: helpers?.sendFollowUp,

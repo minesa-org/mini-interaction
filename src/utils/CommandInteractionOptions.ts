@@ -421,7 +421,7 @@ export interface CommandInteraction
 	getResponse(): APIInteractionResponse | null;
 	reply(
 		data: InteractionMessageData,
-	): APIInteractionResponseChannelMessageWithSource;
+	): Promise<APIInteractionResponseChannelMessageWithSource>;
 	edit(data?: InteractionMessageData): APIInteractionResponseUpdateMessage;
 	followUp(data: InteractionMessageData): Promise<void>;
 	editReply(data?: InteractionMessageData): Promise<void>;
@@ -534,7 +534,7 @@ export function createCommandInteraction(
 		getResponse() {
 			return capturedResponse;
 		},
-		reply(data) {
+		async reply(data) {
 			if (this.canRespond && !this.canRespond(this.id)) {
 				throw new Error('Interaction cannot respond: already responded or expired');
 			}
@@ -545,7 +545,7 @@ export function createCommandInteraction(
 			);
 
 			if (isDeferred && this.sendFollowUp) {
-				this.sendFollowUp(this.token, response, '@original');
+				await this.sendFollowUp(this.token, response, '@original');
 			} else {
 				this.onAck?.(response);
 			}

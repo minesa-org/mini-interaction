@@ -27,7 +27,7 @@ export type ContextMenuInteractionHelpers = {
 	getResponse: () => APIInteractionResponse | null;
 	reply: (
 		data: InteractionMessageData,
-	) => APIInteractionResponseChannelMessageWithSource;
+	) => Promise<APIInteractionResponseChannelMessageWithSource>;
 	followUp: (
 		data: InteractionMessageData,
 	) => Promise<APIInteractionResponseChannelMessageWithSource>;
@@ -139,9 +139,9 @@ function createContextMenuInteractionHelpers(
 		return captureResponse({ type });
 	}
 
-	const reply = (
+	const reply = async (
 		data: InteractionMessageData,
-	): APIInteractionResponseChannelMessageWithSource => {
+	): Promise<APIInteractionResponseChannelMessageWithSource> => {
 		if (helpers?.canRespond && !helpers.canRespond(interaction.id)) {
 			throw new Error("[MiniInteraction] Interaction cannot respond: already responded or expired");
 		}
@@ -152,7 +152,7 @@ function createContextMenuInteractionHelpers(
 		);
 
 		if (isDeferred && helpers?.sendFollowUp) {
-			helpers.sendFollowUp(interaction.token, response, '@original');
+			await helpers.sendFollowUp(interaction.token, response, '@original');
 		} else {
 			helpers?.onAck?.(response);
 		}

@@ -257,6 +257,12 @@ export type MessageComponentInteraction = APIMessageComponentInteraction & {
 			| { toJSON(): APIModalInteractionResponseCallbackData },
 	) => APIModalInteractionResponse;
 	/**
+	 * Edit the initial interaction response.
+	 */
+	editReply: (
+		data?: InteractionMessageData,
+	) => Promise<APIInteractionResponseUpdateMessage | APIInteractionResponseChannelMessageWithSource>;
+	/**
 	 * Finalise the interaction response via a webhook follow-up.
 	 * This is automatically called by reply() and update() if the interaction is deferred.
 	 */
@@ -438,6 +444,36 @@ export function createMessageComponentInteraction(
 		});
 	};
 
+	const editReply = async (
+		data?: InteractionMessageData,
+	): Promise<APIInteractionResponseUpdateMessage | APIInteractionResponseChannelMessageWithSource> => {
+		if (helpers?.canRespond && !helpers.canRespond(interaction.id)) {
+			throw new Error("[MiniInteraction] Interaction cannot edit reply: expired");
+		}
+
+		const normalisedData = normaliseInteractionMessageData(data);
+		const response = captureResponse(
+			normalisedData
+				? {
+						type: InteractionResponseType.ChannelMessageWithSource,
+						data: normalisedData,
+				  }
+				: {
+						type: InteractionResponseType.ChannelMessageWithSource,
+						data: { content: "" }
+				  },
+		);
+
+		if (helpers?.sendFollowUp) {
+			await helpers.sendFollowUp(interaction.token, response, "@original");
+		} else {
+			helpers?.onAck?.(response);
+		}
+
+		helpers?.trackResponse?.(interaction.id, interaction.token, "responded");
+		return response;
+	};
+
 	const getResponse = (): APIInteractionResponse | null => capturedResponse;
 
 	// Extract values from select menu interactions
@@ -552,6 +588,7 @@ export function createMessageComponentInteraction(
 		update,
 		deferUpdate,
 		showModal,
+		editReply,
 		getResponse,
 		values,
 		getStringValues,
