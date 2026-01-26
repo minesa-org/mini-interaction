@@ -2152,19 +2152,25 @@ export class MiniInteraction {
 	/**
 	 * Sends a follow-up response or edits an existing response via Discord's interaction webhooks.
 	 * This is used for interactions that have already been acknowledged (e.g., via deferReply).
+	 * 
+	 * Includes retry logic to handle race conditions where the ACK hasn't reached Discord yet.
 	 */
 	private async sendFollowUp(
 		token: string,
 		response: APIInteractionResponse,
 		messageId: string = "@original",
+		retryCount: number = 0,
 	): Promise<void> {
+		const MAX_RETRIES = 3;
+		const BASE_DELAY_MS = 250; // Start with 250ms delay
+
 		const isEdit = messageId !== "";
 		const url = isEdit
 			? `${DISCORD_BASE_URL}/webhooks/${this.applicationId}/${token}/messages/${messageId}`
 			: `${DISCORD_BASE_URL}/webhooks/${this.applicationId}/${token}`;
 
 		if (this.timeoutConfig.enableResponseDebugLogging) {
-			console.log(`[MiniInteraction] sendFollowUp: id=${messageId || 'new'}, edit=${isEdit}, url=${url}`);
+			console.log(`[MiniInteraction] sendFollowUp: id=${messageId || 'new'}, edit=${isEdit}, retry=${retryCount}, url=${url}`);
 		}
 
 		// Only send follow-up if there is data to send
@@ -2190,6 +2196,17 @@ export class MiniInteraction {
 
 			if (!fetchResponse.ok) {
 				const errorBody = await fetchResponse.text();
+				
+				// Check for "Unknown Webhook" error (10015) - this means ACK hasn't reached Discord yet
+				if (fetchResponse.status === 404 && errorBody.includes("10015") && retryCount < MAX_RETRIES) {
+					const delayMs = BASE_DELAY_MS * Math.pow(2, retryCount); // Exponential backoff: 250, 500, 1000ms
+					console.warn(
+						`[MiniInteraction] Webhook not ready yet, retrying in ${delayMs}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`,
+					);
+					await new Promise(resolve => setTimeout(resolve, delayMs));
+					return this.sendFollowUp(token, response, messageId, retryCount + 1);
+				}
+
 				console.error(
 					`[MiniInteraction] Failed to send follow-up response (id=${messageId || 'new'}): [${fetchResponse.status}] ${errorBody}`,
 				);
