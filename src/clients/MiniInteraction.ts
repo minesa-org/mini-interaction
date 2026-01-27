@@ -100,6 +100,25 @@ export type InteractionRequest = {
 export type InteractionHandlerResult = {
 	status: number;
 	body: APIInteractionResponse | { error: string };
+	/**
+	 * Promise that resolves when all background work (like editReply) completes.
+	 * Pass this to Vercel's waitUntil() to prevent premature termination.
+	 * 
+	 * @example
+	 * ```typescript
+	 * // In Next.js App Router
+	 * import { waitUntil } from '@vercel/functions';
+	 * 
+	 * export async function POST(request: Request) {
+	 *   const result = await client.handleRequest({ ... });
+	 *   if (result.backgroundWork) {
+	 *     waitUntil(result.backgroundWork);
+	 *   }
+	 *   return Response.json(result.body, { status: result.status });
+	 * }
+	 * ```
+	 */
+	backgroundWork?: Promise<void>;
 };
 
 /** Configuration for interaction timeout handling. */
@@ -1834,11 +1853,12 @@ export class MiniInteraction {
 				ackPromise,
 			);
 
-			const resolvedResponse = await timeoutWrapper();
+			const { response: resolvedResponse, backgroundWork } = await timeoutWrapper();
 
 			return {
 				status: 200,
 				body: resolvedResponse!,
+				backgroundWork,
 			};
 		} catch (error) {
 			const errorMessage =
@@ -1926,11 +1946,12 @@ export class MiniInteraction {
 				ackPromise,
 			);
 
-			const resolvedResponse = await timeoutWrapper();
+			const { response: resolvedResponse, backgroundWork } = await timeoutWrapper();
 
 			return {
 				status: 200,
 				body: resolvedResponse!,
+				backgroundWork,
 			};
 		} catch (error) {
 			const errorMessage =
@@ -2099,7 +2120,7 @@ export class MiniInteraction {
 				ackPromise,
 			);
 
-			const finalResponse = await timeoutWrapper();
+			const { response: finalResponse, backgroundWork } = await timeoutWrapper();
 
 			if (this.timeoutConfig.enableResponseDebugLogging) {
 				console.log(`[MiniInteraction] handleApplicationCommand: initial response determined (type=${finalResponse?.type})`);
@@ -2125,6 +2146,7 @@ export class MiniInteraction {
 			return {
 				status: 200,
 				body: finalResponse,
+				backgroundWork,
 			};
 		} catch (error) {
 			const errorMessage =
@@ -2429,8 +2451,8 @@ function createTimeoutWrapper<T extends any[], R>(
 	handlerName: string,
 	enableWarnings: boolean = true,
 	ackPromise?: Promise<R>,
-): (...args: T) => Promise<R> {
-	return async (...args: T): Promise<R> => {
+): (...args: T) => Promise<{ response: R; backgroundWork: Promise<void> }> {
+	return async (...args: T): Promise<{ response: R; backgroundWork: Promise<void> }> => {
 		const startTime = Date.now();
 		let timeoutId: NodeJS.Timeout | undefined;
 
@@ -2451,12 +2473,20 @@ function createTimeoutWrapper<T extends any[], R>(
 		// Start handler execution immediately (don't await yet)
 		const handlerPromise = Promise.resolve(handler(...args));
 
+		// Attach a default error handler to prevent unhandled rejections
+		const backgroundWork = handlerPromise.catch((error) => {
+			console.error(
+				`[MiniInteraction] ${handlerName} background execution failed:`,
+				error instanceof Error ? error.message : String(error),
+			);
+		}).then(() => {
+			// Ensure it always resolves to void
+		});
+
 		// If we have an ackPromise, race between ACK and timeout
-		// When ACK is received, return IMMEDIATELY so Discord gets the response
-		// Handler continues in background
 		if (ackPromise) {
 			try {
-				const ackResult = await Promise.race([
+				const response = await Promise.race([
 					ackPromise,
 					timeoutPromise,
 				]);
@@ -2466,15 +2496,7 @@ function createTimeoutWrapper<T extends any[], R>(
 					clearTimeout(timeoutId);
 				}
 				
-				// Handler continues in background - attach error handler
-				handlerPromise.catch((error) => {
-					console.error(
-						`[MiniInteraction] ${handlerName} background execution failed:`,
-						error instanceof Error ? error.message : String(error),
-					);
-				});
-				
-				return ackResult;
+				return { response, backgroundWork };
 			} catch (error) {
 				// Timeout occurred before ACK - fall through to check handler
 				if (timeoutId) {
@@ -2486,7 +2508,7 @@ function createTimeoutWrapper<T extends any[], R>(
 
 		// No ACK promise - wait for handler with timeout
 		try {
-			const handlerResult = await Promise.race([
+			const response = await Promise.race([
 				handlerPromise,
 				timeoutPromise,
 			]);
@@ -2504,7 +2526,7 @@ function createTimeoutWrapper<T extends any[], R>(
 				);
 			}
 
-			return handlerResult;
+			return { response, backgroundWork };
 		} catch (error) {
 			if (timeoutId) {
 				clearTimeout(timeoutId);
