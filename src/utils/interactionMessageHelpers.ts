@@ -122,7 +122,7 @@ export function normaliseInteractionMessageData(
 	if (responseData.components && Array.isArray(responseData.components)) {
 		if (containsComponentsV2(responseData.components)) {
 			const currentFlags = (responseData.flags as number) ?? 0;
-			responseData.flags = (currentFlags | InteractionFlags.IsComponentsV2) as MessageFlags;
+			responseData.flags = (currentFlags | (0x1 << 15)) as MessageFlags;
 		}
 	}
 
