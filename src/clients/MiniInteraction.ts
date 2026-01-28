@@ -351,6 +351,12 @@ export class MiniInteraction {
 	 * Creates a new MiniInteraction client with optional command auto-loading and custom runtime hooks.
 	 */
 	constructor(options: InteractionClientOptions = {}) {
+		// Attempt to load .env if dotenv is available (non-blocking)
+		if (typeof process !== "undefined" && !process.env.DISCORD_APPLICATION_ID) {
+			// @ts-ignore - Optional dependency, may not have types available during build
+			import("dotenv/config").catch(() => {});
+		}
+
 		const {
 			applicationId,
 			publicKey,
@@ -365,14 +371,6 @@ export class MiniInteraction {
 		const resolvedAppId = applicationId ?? (typeof process !== "undefined" ? process.env.DISCORD_APPLICATION_ID : undefined);
 		const resolvedPublicKey = publicKey ?? (typeof process !== "undefined" ? (process.env.DISCORD_PUBLIC_KEY ?? process.env.DISCORD_APP_PUBLIC_KEY) : undefined);
 
-		if (!resolvedAppId) {
-			throw new Error("[MiniInteraction] applicationId is required (or DISCORD_APPLICATION_ID env var)");
-		}
-
-		if (!resolvedPublicKey) {
-			throw new Error("[MiniInteraction] publicKey is required (or DISCORD_PUBLIC_KEY env var)");
-		}
-
 		const fetchImpl = fetchImplementation ?? globalThis.fetch;
 		if (typeof fetchImpl !== "function") {
 			throw new Error(
@@ -380,8 +378,8 @@ export class MiniInteraction {
 			);
 		}
 
-		this.applicationId = resolvedAppId;
-		this.publicKey = resolvedPublicKey;
+		this.applicationId = resolvedAppId!;
+		this.publicKey = resolvedPublicKey!;
 		this.fetchImpl = fetchImpl;
 		this.verifyKeyImpl = verifyKeyImplementation ?? verifyKey;
 		this.commandsDirectory =
