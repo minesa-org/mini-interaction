@@ -28,7 +28,19 @@ export type ModalSubmitInteraction = APIModalSubmitInteraction & {
 	/**
 	 * Helper method to get the value of a text input component by its custom ID.
 	 */
+	/**
+	 * Helper method to get the value of a text input component by its custom ID.
+	 */
 	getTextFieldValue: (customId: string) => string | undefined;
+	/**
+	 * Helper method to get the value(s) of a select menu component by its custom ID.
+	 */
+	getSelectMenuValues: (customId: string) => string[] | undefined;
+	/**
+	 * Helper method to get the value of any component by its custom ID.
+	 * Returns string for text inputs, string[] for select menus, or undefined.
+	 */
+	getComponentValue: (customId: string) => string | string[] | undefined;
 	/**
 	 * Finalise the interaction response via a webhook follow-up.
 	 * This is automatically called by reply() if the interaction is deferred.
@@ -156,12 +168,47 @@ export function createModalSubmitInteraction(
 		return undefined;
 	};
 
+	const getSelectMenuValues = (customId: string): string[] | undefined => {
+		for (const actionRow of interaction.data.components) {
+			if ("components" in actionRow && Array.isArray(actionRow.components)) {
+				for (const rawComponent of actionRow.components) {
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					const component = rawComponent as any;
+					if (
+						(component.type === ComponentType.StringSelect ||
+							component.type === ComponentType.UserSelect ||
+							component.type === ComponentType.RoleSelect ||
+							component.type === ComponentType.MentionableSelect ||
+							component.type === ComponentType.ChannelSelect) &&
+						component.custom_id === customId
+					) {
+						return component.values;
+					}
+				}
+			}
+		}
+		return undefined;
+	};
+
+	const getComponentValue = (
+		customId: string,
+	): string | string[] | undefined => {
+		const textValue = getTextFieldValue(customId);
+		if (textValue !== undefined) {
+			return textValue;
+		}
+
+		return getSelectMenuValues(customId);
+	};
+
 	return Object.assign(interaction, {
 		reply,
 		deferReply,
 		editReply,
 		getResponse,
 		getTextFieldValue,
+		getSelectMenuValues,
+		getComponentValue,
 		sendFollowUp: helpers?.sendFollowUp,
 		canRespond: helpers?.canRespond,
 		trackResponse: helpers?.trackResponse,
