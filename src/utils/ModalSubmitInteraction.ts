@@ -1,5 +1,4 @@
 import {
-	ComponentType,
 	InteractionResponseType,
 	type APIInteractionResponse,
 	type APIInteractionResponseChannelMessageWithSource,
@@ -155,10 +154,12 @@ export function createModalSubmitInteraction(
 	const getTextFieldValue = (customId: string): string | undefined => {
 		for (const actionRow of interaction.data.components) {
 			if ("components" in actionRow && Array.isArray(actionRow.components)) {
-				for (const component of actionRow.components) {
+				for (const rawComponent of actionRow.components) {
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					const component = rawComponent as any;
 					if (
-						component.type === ComponentType.TextInput &&
-						component.custom_id === customId
+						component.custom_id === customId &&
+						typeof component.value === "string"
 					) {
 						return component.value;
 					}
@@ -175,12 +176,8 @@ export function createModalSubmitInteraction(
 					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					const component = rawComponent as any;
 					if (
-						(component.type === ComponentType.StringSelect ||
-							component.type === ComponentType.UserSelect ||
-							component.type === ComponentType.RoleSelect ||
-							component.type === ComponentType.MentionableSelect ||
-							component.type === ComponentType.ChannelSelect) &&
-						component.custom_id === customId
+						component.custom_id === customId &&
+						Array.isArray(component.values)
 					) {
 						return component.values;
 					}
