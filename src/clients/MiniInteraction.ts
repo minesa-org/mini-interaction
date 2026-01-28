@@ -350,18 +350,20 @@ export class MiniInteraction {
 	/**
 	 * Creates a new MiniInteraction client with optional command auto-loading and custom runtime hooks.
 	 */
-	constructor({
-		applicationId,
-		publicKey,
-		commandsDirectory,
-		componentsDirectory,
-		utilsDirectory,
-		fetchImplementation,
-		verifyKeyImplementation,
-		timeoutConfig,
-	}: InteractionClientOptions) {
+	constructor(options: InteractionClientOptions = {}) {
+		const {
+			applicationId,
+			publicKey,
+			commandsDirectory,
+			componentsDirectory,
+			utilsDirectory,
+			fetchImplementation,
+			verifyKeyImplementation,
+			timeoutConfig,
+		} = options;
+
 		const resolvedAppId = applicationId ?? (typeof process !== "undefined" ? process.env.DISCORD_APPLICATION_ID : undefined);
-		const resolvedPublicKey = publicKey ?? (typeof process !== "undefined" ? process.env.DISCORD_PUBLIC_KEY : undefined);
+		const resolvedPublicKey = publicKey ?? (typeof process !== "undefined" ? (process.env.DISCORD_PUBLIC_KEY ?? process.env.DISCORD_APP_PUBLIC_KEY) : undefined);
 
 		if (!resolvedAppId) {
 			throw new Error("[MiniInteraction] applicationId is required (or DISCORD_APPLICATION_ID env var)");
