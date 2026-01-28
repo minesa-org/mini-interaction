@@ -344,6 +344,8 @@ export class MiniInteraction {
 	private loadComponentsPromise: Promise<void> | null = null;
 	private registerCommandsPromise: Promise<unknown> | null = null;
 	private registerCommandsSignature: string | null = null;
+	private vercelWaitUntil: any = null;
+	private searchedForVercel = false;
 
 	/**
 	 * Creates a new MiniInteraction client with optional command auto-loading and custom runtime hooks.
@@ -458,6 +460,36 @@ export class MiniInteraction {
 
 		return cleaned;
 	}
+
+	/**
+	 * Attempt to find a waitUntil implementation in the environment (e.g. Vercel or Cloudflare).
+	 */
+	private async getAutoWaitUntil(): Promise<((promise: Promise<void>) => void) | null> {
+		if (this.searchedForVercel) return this.vercelWaitUntil;
+		this.searchedForVercel = true;
+
+		// Try Vercel's @vercel/functions
+		try {
+			// @ts-ignore - Dynamic import to avoid hard dependency or build errors in non-vercel environments
+			const { waitUntil } = await import("@vercel/functions");
+			if (typeof waitUntil === "function") {
+				this.vercelWaitUntil = waitUntil;
+				return waitUntil;
+			}
+		} catch {
+			// Ignore if not found
+		}
+
+		// Try globalThis.waitUntil (some edge runtimes)
+		// @ts-ignore
+		if (typeof globalThis.waitUntil === "function") {
+			// @ts-ignore
+			return globalThis.waitUntil;
+		}
+
+		return null;
+	}
+
 	private normalizeCommandData(
 		data: InteractionCommand["data"],
 	): CommandDataPayload {
@@ -937,7 +969,10 @@ export class MiniInteraction {
 	 * Creates a Node.js style request handler compatible with Express, Next.js API routes,
 	 * Vercel serverless functions, and any runtime that expects a `(req, res)` listener.
 	 */
-	createNodeHandler(): InteractionNodeHandler {
+	createNodeHandler(options?: {
+		waitUntil?: (promise: Promise<void>) => void;
+	}): InteractionNodeHandler {
+		const { waitUntil } = options ?? {};
 		return (request, response) => {
 			if (request.method !== "POST") {
 				response.statusCode = 405;
@@ -987,6 +1022,14 @@ export class MiniInteraction {
 						signature,
 						timestamp,
 					});
+
+					if (result.backgroundWork) {
+						const resolvedWaitUntil = waitUntil ?? await this.getAutoWaitUntil();
+						if (resolvedWaitUntil) {
+							resolvedWaitUntil(result.backgroundWork);
+						}
+					}
+
 					response.statusCode = result.status;
 					response.setHeader("content-type", "application/json");
 					response.end(JSON.stringify(result.body));
@@ -1333,7 +1376,14 @@ export class MiniInteraction {
 	/**
 	 * Creates a Fetch API compatible handler for runtimes like Workers or Deno.
 	 */
-	createFetchHandler(): InteractionFetchHandler {
+	/**
+	 * Generates a Fetch-standard request handler compatible with Cloudflare Workers,
+	 * Bun, Deno, and Next.js Edge Runtime.
+	 */
+	createFetchHandler(options?: {
+		waitUntil?: (promise: Promise<void>) => void;
+	}): InteractionFetchHandler {
+		const { waitUntil } = options ?? {};
 		return async (request) => {
 			if (request.method !== "POST") {
 				return new Response(
@@ -1360,6 +1410,13 @@ export class MiniInteraction {
 					signature,
 					timestamp,
 				});
+
+				if (result.backgroundWork) {
+					const resolvedWaitUntil = waitUntil ?? await this.getAutoWaitUntil();
+					if (resolvedWaitUntil) {
+						resolvedWaitUntil(result.backgroundWork);
+					}
+				}
 
 				return new Response(JSON.stringify(result.body), {
 					status: result.status,
