@@ -186,7 +186,9 @@ export class ContainerBuilder implements JSONEncodable<MiniContainerComponent> {
 		return {
 			...(this.data as MiniContainerComponent),
 			type: ComponentType.Container,
-			components: components.map((component) => ({ ...component })),
+			components: components.map((component) =>
+				resolveJSONEncodable(component),
+			),
 		};
 	}
 }
@@ -259,7 +261,7 @@ export class SectionBuilder implements JSONEncodable<MiniSectionComponent> {
 	toJSON(): MiniSectionComponent {
 		const components = this.data.components ?? [];
 		const accessory = this.data.accessory
-			? { ...this.data.accessory }
+			? resolveJSONEncodable(this.data.accessory)
 			: undefined;
 
 		if (!accessory) {
@@ -271,7 +273,9 @@ export class SectionBuilder implements JSONEncodable<MiniSectionComponent> {
 		return {
 			...(this.data as MiniSectionComponent),
 			type: ComponentType.Section,
-			components: components.map((component) => ({ ...component })),
+			components: components.map((component) =>
+				resolveJSONEncodable(component),
+			),
 			accessory,
 		};
 	}
@@ -540,7 +544,7 @@ export class GalleryBuilder implements JSONEncodable<MiniGalleryComponent> {
 		return {
 			...(this.data as MiniGalleryComponent),
 			type: ComponentType.MediaGallery,
-			items: items.map((item) => ({ ...item })),
+			items: items.map((item) => resolveJSONEncodable(item)),
 		};
 	}
 }

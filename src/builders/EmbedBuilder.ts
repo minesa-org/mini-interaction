@@ -7,7 +7,7 @@ import {
         type APIEmbedThumbnail,
 } from "discord-api-types/v10";
 
-import type { JSONEncodable } from "./shared.js";
+import { type JSONEncodable, resolveJSONEncodable } from "./shared.js";
 
 /** Shape describing data used to seed an embed builder instance. */
 export type EmbedBuilderData = Partial<APIEmbed>;
@@ -110,11 +110,21 @@ export class EmbedBuilder implements JSONEncodable<APIEmbed> {
         toJSON(): APIEmbed {
                 return {
                         ...this.data,
-                        footer: this.data.footer ? { ...this.data.footer } : undefined,
-                        image: this.data.image ? { ...this.data.image } : undefined,
-                        thumbnail: this.data.thumbnail ? { ...this.data.thumbnail } : undefined,
-                        author: this.data.author ? { ...this.data.author } : undefined,
-                        fields: this.data.fields?.map((field) => ({ ...field })),
+                        footer: this.data.footer
+                                ? resolveJSONEncodable(this.data.footer)
+                                : undefined,
+                        image: this.data.image
+                                ? resolveJSONEncodable(this.data.image)
+                                : undefined,
+                        thumbnail: this.data.thumbnail
+                                ? resolveJSONEncodable(this.data.thumbnail)
+                                : undefined,
+                        author: this.data.author
+                                ? resolveJSONEncodable(this.data.author)
+                                : undefined,
+                        fields: this.data.fields?.map((field) =>
+                                resolveJSONEncodable(field),
+                        ),
                 };
         }
 }

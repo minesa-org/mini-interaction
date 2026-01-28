@@ -2,7 +2,7 @@ import { MessageFlags } from "discord-api-types/v10";
 
 export enum InteractionFlags {
 	Ephemeral = MessageFlags.Ephemeral,
-	IsComponentsV2 = MessageFlags.IsComponentsV2,
+	IsComponentsV2 = 4096,
 	SuppressEmbeds = MessageFlags.SuppressEmbeds,
 }
 
