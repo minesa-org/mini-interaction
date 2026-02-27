@@ -74,6 +74,7 @@ export type InteractionClientOptions = {
 	commandsDirectory?: string | false;
 	componentsDirectory?: string | false;
 	utilsDirectory?: string | false;
+	debug?: boolean;
 	fetchImplementation?: typeof fetch;
 	verifyKeyImplementation?: VerifyKeyFunction;
 	timeoutConfig?: InteractionTimeoutConfig;
@@ -319,6 +320,7 @@ export class MiniInteraction {
 	private readonly commandsDirectory: string | null;
 	private readonly componentsDirectory: string | null;
 	public readonly utilsDirectory: string | null;
+	private readonly debug: boolean;
 	private readonly timeoutConfig: Required<InteractionTimeoutConfig>;
 	private readonly commands = new Map<
 		string,
@@ -363,10 +365,13 @@ export class MiniInteraction {
 			commandsDirectory,
 			componentsDirectory,
 			utilsDirectory,
+			debug,
 			fetchImplementation,
 			verifyKeyImplementation,
 			timeoutConfig,
 		} = options;
+
+		this.debug = debug ?? (typeof process !== "undefined" ? process.env.DEBUG === "true" || process.env.MINI_DEBUG === "true" : false);
 
 		const resolvedAppId = applicationId ?? (typeof process !== "undefined" ? process.env.DISCORD_APPLICATION_ID : undefined);
 		const resolvedPublicKey = publicKey ?? (typeof process !== "undefined" ? (process.env.DISCORD_PUBLIC_KEY ?? process.env.DISCORD_APP_PUBLIC_KEY) : undefined);
@@ -401,6 +406,12 @@ export class MiniInteraction {
 			enableResponseDebugLogging: false,
 			...timeoutConfig,
 		};
+	}
+
+	private log(message: string, ...args: any[]): void {
+		if (this.debug) {
+			console.log(`[MiniInteraction] ${message}`, ...args);
+		}
 	}
 
 	private trackInteractionState(interactionId: string, token: string, state: 'pending' | 'deferred' | 'responded' | 'expired'): void {
@@ -1457,6 +1468,9 @@ export class MiniInteraction {
 	 * Recursively collects all command module file paths from the target directory.
 	 */
 	private async collectModuleFiles(directory: string): Promise<string[]> {
+		if (this.debug) {
+			this.log(`Collecting module files from: ${directory}`);
+		}
 		const entries = await readdir(directory, { withFileTypes: true });
 		const files: string[] = [];
 
@@ -1503,6 +1517,7 @@ export class MiniInteraction {
 	): Promise<InteractionCommand | null> {
 		try {
 			const moduleUrl = pathToFileURL(absolutePath).href;
+			this.log(`Dynamically importing command: ${moduleUrl}`);
 			const imported = await import(moduleUrl);
 
 			// Try to find a command object from various export patterns
@@ -1588,6 +1603,7 @@ export class MiniInteraction {
 	): Promise<ComponentCommand[]> {
 		try {
 			const moduleUrl = pathToFileURL(absolutePath).href;
+			this.log(`Dynamically importing component: ${moduleUrl}`);
 			const imported = await import(moduleUrl);
 
 			// Collect all potential component candidates
@@ -1839,11 +1855,18 @@ export class MiniInteraction {
 		}
 
 		for (const candidate of candidates) {
-			if (existsSync(candidate)) {
+			const exists = existsSync(candidate);
+			if (this.debug) {
+				this.log(`Checking directory: ${candidate} (exists: ${exists})`);
+			}
+			if (exists) {
 				return candidate;
 			}
 		}
 
+		if (this.debug) {
+			this.log(`No existing directory found for ${defaultFolder}, using default candidate: ${candidates[0]}`);
+		}
 		return candidates[0];
 	}
 
