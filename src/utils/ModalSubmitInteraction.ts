@@ -256,24 +256,33 @@ export function createModalSubmitInteraction(
 
 	const getRoles = (customId: string): APIRole[] => {
 		const values = getSelectMenuValues(customId);
-		if (!values || !interaction.data.resolved?.roles) return [];
-		return values
-			.map((id) => (interaction.data.resolved as any).roles[id])
-			.filter(Boolean);
+		const resolved = interaction.data.resolved;
+		if (!values || !resolved?.roles) return [];
+		
+		const roles: APIRole[] = [];
+		for (const id of values) {
+			const role = (resolved.roles as any)[id];
+			if (role) roles.push(role);
+		}
+		return roles;
 	};
 
 	const getRole = (customId: string): APIRole | undefined => getRoles(customId)[0];
 
 	const getUsers = (customId: string): ResolvedUserOption[] => {
 		const values = getSelectMenuValues(customId);
-		if (!values || !interaction.data.resolved?.users) return [];
-		return values
-			.map((id) => {
-				const user = (interaction.data.resolved as any).users[id];
-				const member = (interaction.data.resolved as any).members?.[id];
-				return user ? { user, member } : undefined;
-			})
-			.filter((u): u is ResolvedUserOption => !!u);
+		const resolved = interaction.data.resolved;
+		if (!values || !resolved?.users) return [];
+		
+		const users: ResolvedUserOption[] = [];
+		for (const id of values) {
+			const user = (resolved.users as any)[id];
+			if (user) {
+				const member = (resolved.members as any)?.[id];
+				users.push({ user, member });
+			}
+		}
+		return users;
 	};
 
 	const getUser = (customId: string): ResolvedUserOption | undefined =>
@@ -281,10 +290,15 @@ export function createModalSubmitInteraction(
 
 	const getChannels = (customId: string): APIInteractionDataResolvedChannel[] => {
 		const values = getSelectMenuValues(customId);
-		if (!values || !interaction.data.resolved?.channels) return [];
-		return values
-			.map((id) => (interaction.data.resolved as any).channels[id])
-			.filter(Boolean);
+		const resolved = interaction.data.resolved;
+		if (!values || !resolved?.channels) return [];
+		
+		const channels: APIInteractionDataResolvedChannel[] = [];
+		for (const id of values) {
+			const channel = (resolved.channels as any)[id];
+			if (channel) channels.push(channel);
+		}
+		return channels;
 	};
 
 	const getChannel = (customId: string): APIInteractionDataResolvedChannel | undefined =>
