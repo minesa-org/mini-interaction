@@ -19,6 +19,7 @@ import {
 	type APIModalInteractionResponseCallbackData,
 	type APIRole,
 	type APIUser,
+	type APIAttachment,
 } from "discord-api-types/v10";
 
 import {
@@ -288,21 +289,29 @@ export type MessageComponentInteraction = APIMessageComponentInteraction & {
 	 * @returns Array of resolved role objects, or empty array if not a role select menu
 	 */
 	getRoles: () => APIRole[];
+	getRole: () => APIRole | undefined;
 	/**
 	 * Helper method to get selected channels from a channel select menu.
 	 * @returns Array of resolved channel objects, or empty array if not a channel select menu
 	 */
 	getChannels: () => APIInteractionDataResolvedChannel[];
+	getChannel: () => APIInteractionDataResolvedChannel | undefined;
 	/**
 	 * Helper method to get selected users from a user select menu.
 	 * @returns Array of resolved user objects (with optional member data), or empty array if not a user select menu
 	 */
 	getUsers: () => ResolvedUserOption[];
+	getUser: () => ResolvedUserOption | undefined;
 	/**
 	 * Helper method to get selected mentionables from a mentionable select menu.
 	 * @returns Array of resolved mentionable objects (users or roles), or empty array if not a mentionable select menu
 	 */
 	getMentionables: () => ResolvedMentionableOption[];
+	getMentionable: () => ResolvedMentionableOption | undefined;
+	/**
+	 * Helper method to get an attachment value (if applicable).
+	 */
+	getAttachment: () => APIAttachment | undefined;
 };
 
 export const MessageComponentInteraction = {};
@@ -510,6 +519,8 @@ export function createMessageComponentInteraction(
 		return roles;
 	};
 
+	const getRole = (): APIRole | undefined => getRoles()[0];
+
 	const getChannels = (): APIInteractionDataResolvedChannel[] => {
 		if (!values) {
 			return [];
@@ -531,6 +542,8 @@ export function createMessageComponentInteraction(
 		}
 		return channels;
 	};
+
+	const getChannel = (): APIInteractionDataResolvedChannel | undefined => getChannels()[0];
 
 	const getUsers = (): ResolvedUserOption[] => {
 		if (!values) {
@@ -554,6 +567,8 @@ export function createMessageComponentInteraction(
 		}
 		return users;
 	};
+
+	const getUser = (): ResolvedUserOption | undefined => getUsers()[0];
 
 	const getMentionables = (): ResolvedMentionableOption[] => {
 		if (!values) {
@@ -585,6 +600,17 @@ export function createMessageComponentInteraction(
 		return mentionables;
 	};
 
+	const getMentionable = (): ResolvedMentionableOption | undefined => getMentionables()[0];
+
+	const getAttachment = (): APIAttachment | undefined => {
+		if (!values || values.length === 0) return undefined;
+		const resolved =
+			"resolved" in interaction.data
+				? (interaction.data.resolved as any)
+				: undefined;
+		return resolved?.attachments?.[values[0]];
+	};
+
 	return Object.assign(interaction, {
 		reply,
 		deferReply,
@@ -596,9 +622,14 @@ export function createMessageComponentInteraction(
 		values,
 		getStringValues,
 		getRoles,
+		getRole,
 		getChannels,
+		getChannel,
 		getUsers,
+		getUser,
 		getMentionables,
+		getMentionable,
+		getAttachment,
 		onAck: helpers?.onAck,
 		sendFollowUp: helpers?.sendFollowUp,
 		canRespond: helpers?.canRespond,

@@ -4,6 +4,11 @@ import {
 	type APIInteractionResponseChannelMessageWithSource,
 	type APIInteractionResponseDeferredChannelMessageWithSource,
 	type APIModalSubmitInteraction,
+	type APIRole,
+	type APIUser,
+	type APIInteractionDataResolvedChannel,
+	type APIInteractionDataResolvedGuildMember,
+	type APIAttachment,
 } from "discord-api-types/v10";
 
 import {
@@ -12,6 +17,7 @@ import {
 	normaliseInteractionMessageData,
 	normaliseMessageFlags,
 } from "./interactionMessageHelpers.js";
+import type { ResolvedUserOption } from "./MessageComponentInteraction.js";
 
 /**
  * Represents a modal submit interaction augmented with helper response methods.
@@ -27,9 +33,6 @@ export type ModalSubmitInteraction = APIModalSubmitInteraction & {
 	/**
 	 * Helper method to get the value of a text input component by its custom ID.
 	 */
-	/**
-	 * Helper method to get the value of a text input component by its custom ID.
-	 */
 	getTextFieldValue: (customId: string) => string | undefined;
 	/**
 	 * Helper method to get the value(s) of a select menu component by its custom ID.
@@ -40,6 +43,25 @@ export type ModalSubmitInteraction = APIModalSubmitInteraction & {
 	 * Returns string for text inputs, string[] for select menus, or undefined.
 	 */
 	getComponentValue: (customId: string) => string | string[] | undefined;
+	/**
+	 * Helper method to get selected roles from a role select menu in the modal.
+	 */
+	getRoles: (customId: string) => APIRole[];
+	getRole: (customId: string) => APIRole | undefined;
+	/**
+	 * Helper method to get selected users from a user select menu in the modal.
+	 */
+	getUsers: (customId: string) => ResolvedUserOption[];
+	getUser: (customId: string) => ResolvedUserOption | undefined;
+	/**
+	 * Helper method to get selected channels from a channel select menu in the modal.
+	 */
+	getChannels: (customId: string) => APIInteractionDataResolvedChannel[];
+	getChannel: (customId: string) => APIInteractionDataResolvedChannel | undefined;
+	/**
+	 * Helper method to get an attachment value (e.g. from FileUpload component).
+	 */
+	getAttachment: (customId: string) => APIAttachment | undefined;
 	/**
 	 * Finalise the interaction response via a webhook follow-up.
 	 * This is automatically called by reply() if the interaction is deferred.
@@ -232,6 +254,48 @@ export function createModalSubmitInteraction(
 		return getSelectMenuValues(customId);
 	};
 
+	const getRoles = (customId: string): APIRole[] => {
+		const values = getSelectMenuValues(customId);
+		if (!values || !interaction.data.resolved?.roles) return [];
+		return values
+			.map((id) => (interaction.data.resolved as any).roles[id])
+			.filter(Boolean);
+	};
+
+	const getRole = (customId: string): APIRole | undefined => getRoles(customId)[0];
+
+	const getUsers = (customId: string): ResolvedUserOption[] => {
+		const values = getSelectMenuValues(customId);
+		if (!values || !interaction.data.resolved?.users) return [];
+		return values
+			.map((id) => {
+				const user = (interaction.data.resolved as any).users[id];
+				const member = (interaction.data.resolved as any).members?.[id];
+				return user ? { user, member } : undefined;
+			})
+			.filter((u): u is ResolvedUserOption => !!u);
+	};
+
+	const getUser = (customId: string): ResolvedUserOption | undefined =>
+		getUsers(customId)[0];
+
+	const getChannels = (customId: string): APIInteractionDataResolvedChannel[] => {
+		const values = getSelectMenuValues(customId);
+		if (!values || !interaction.data.resolved?.channels) return [];
+		return values
+			.map((id) => (interaction.data.resolved as any).channels[id])
+			.filter(Boolean);
+	};
+
+	const getChannel = (customId: string): APIInteractionDataResolvedChannel | undefined =>
+		getChannels(customId)[0];
+
+	const getAttachment = (customId: string): APIAttachment | undefined => {
+		const value = getComponentValue(customId);
+		if (!value || Array.isArray(value)) return undefined;
+		return (interaction.data.resolved as any)?.attachments?.[value];
+	};
+
 	return Object.assign(interaction, {
 		reply,
 		deferReply,
@@ -240,6 +304,13 @@ export function createModalSubmitInteraction(
 		getTextFieldValue,
 		getSelectMenuValues,
 		getComponentValue,
+		getRoles,
+		getRole,
+		getUsers,
+		getUser,
+		getChannels,
+		getChannel,
+		getAttachment,
 		sendFollowUp: helpers?.sendFollowUp,
 		canRespond: helpers?.canRespond,
 		trackResponse: helpers?.trackResponse,

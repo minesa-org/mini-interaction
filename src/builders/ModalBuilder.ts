@@ -127,7 +127,8 @@ export class ModalBuilder
 				componentType === ComponentType.RoleSelect ||
 				componentType === ComponentType.MentionableSelect ||
 				componentType === ComponentType.ChannelSelect ||
-				componentType === ComponentType.FileUpload
+				componentType === ComponentType.FileUpload ||
+				componentType === ComponentType.Label
 			) {
 				return {
 					type: ComponentType.ActionRow,

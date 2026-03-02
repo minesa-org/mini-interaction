@@ -3,6 +3,7 @@ import {
 	SelectMenuDefaultValueType,
 	type APIChannelSelectComponent,
 	type APISelectMenuDefaultValue,
+	ChannelType,
 } from "discord-api-types/v10";
 
 import type { JSONEncodable } from "./shared.js";
@@ -15,6 +16,7 @@ export type ModalChannelSelectMenuBuilderData = {
 	maxValues?: number;
 	disabled?: boolean;
 	required?: boolean;
+	channelTypes?: ChannelType[];
 	defaultValues?: APISelectMenuDefaultValue<SelectMenuDefaultValueType.Channel>[];
 };
 
@@ -35,6 +37,7 @@ export class ModalChannelSelectMenuBuilder
 			maxValues: data.maxValues,
 			disabled: data.disabled,
 			required: data.required,
+			channelTypes: data.channelTypes,
 			defaultValues: data.defaultValues
 				? data.defaultValues.map((value) => ({
 						...value,
@@ -108,6 +111,23 @@ export class ModalChannelSelectMenuBuilder
 	}
 
 	/**
+	 * Sets the channel types allowed in the select menu.
+	 */
+	setChannelTypes(...channelTypes: ChannelType[]): this {
+		this.data.channelTypes = channelTypes.flat();
+		return this;
+	}
+
+	/**
+	 * Adds channel types allowed in the select menu.
+	 */
+	addChannelTypes(...channelTypes: ChannelType[]): this {
+		this.data.channelTypes ??= [];
+		this.data.channelTypes.push(...channelTypes.flat());
+		return this;
+	}
+
+	/**
 	 * Serialises the builder into an API compatible channel select menu payload.
 	 */
 	toJSON(): APIChannelSelectComponent {
@@ -124,6 +144,7 @@ export class ModalChannelSelectMenuBuilder
 			max_values: this.data.maxValues,
 			disabled: this.data.disabled,
 			required: this.data.required,
+			channel_types: this.data.channelTypes,
 			default_values: this.data.defaultValues?.map((value) => ({
 				...value,
 				type: SelectMenuDefaultValueType.Channel,
