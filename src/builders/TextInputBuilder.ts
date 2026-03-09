@@ -1,117 +1,30 @@
-import {
-	ComponentType,
-	TextInputStyle,
-	type APITextInputComponent,
-} from "discord-api-types/v10";
+import { ComponentType, TextInputStyle, type APITextInputComponent } from 'discord-api-types/v10';
+import { type JSONEncodable } from './shared.js';
+import { assertDefined, assertRange, assertStringLength } from '../types/validation.js';
 
-import type { JSONEncodable } from "./shared.js";
-
-/** Shape describing initial text input data accepted by the builder. */
 export type TextInputBuilderData = {
-	customId?: string;
-	style?: TextInputStyle;
-	minLength?: number;
-	maxLength?: number;
-	required?: boolean;
-	value?: string;
-	placeholder?: string;
+  customId?: string; style?: TextInputStyle; minLength?: number; maxLength?: number; required?: boolean; value?: string; placeholder?: string;
 };
 
-/** Builder for Discord text input components used in modals. */
 export class TextInputBuilder implements JSONEncodable<APITextInputComponent> {
-	private data: TextInputBuilderData;
+  private readonly data: TextInputBuilderData;
+  constructor(data: TextInputBuilderData = {}) { this.data = { style: TextInputStyle.Short, ...data }; }
+  setCustomId(customId: string): this { this.data.customId = customId; return this; }
+  setStyle(style: TextInputStyle): this { this.data.style = style; return this; }
+  setMinLength(minLength: number): this { this.data.minLength = minLength; return this; }
+  setMaxLength(maxLength: number): this { this.data.maxLength = maxLength; return this; }
+  setRequired(required: boolean): this { this.data.required = required; return this; }
+  setValue(value: string): this { this.data.value = value; return this; }
+  setPlaceholder(placeholder: string): this { this.data.placeholder = placeholder; return this; }
 
-	/**
-	 * Creates a new text input builder with optional seed data.
-	 */
-	constructor(data: TextInputBuilderData = {}) {
-		this.data = {
-			customId: data.customId,
-			style: data.style ?? TextInputStyle.Short,
-			minLength: data.minLength,
-			maxLength: data.maxLength,
-			required: data.required,
-			value: data.value,
-			placeholder: data.placeholder,
-		};
-	}
+  toJSON(): APITextInputComponent {
+    const customId = assertDefined('TextInputBuilder', 'custom_id', this.data.customId);
+    assertStringLength('TextInputBuilder', 'custom_id', customId, 1, 100);
+    if (this.data.minLength !== undefined) assertRange('TextInputBuilder', 'min_length', this.data.minLength, 0, 4000);
+    if (this.data.maxLength !== undefined) assertRange('TextInputBuilder', 'max_length', this.data.maxLength, 1, 4000);
+    if (this.data.placeholder) assertStringLength('TextInputBuilder', 'placeholder', this.data.placeholder, 1, 100);
+    if (this.data.value) assertStringLength('TextInputBuilder', 'value', this.data.value, 0, 4000);
 
-	/**
-	 * Sets the custom identifier for this text input.
-	 */
-	setCustomId(customId: string): this {
-		this.data.customId = customId;
-		return this;
-	}
-
-	/**
-	 * Sets the style of the text input (Short or Paragraph).
-	 */
-	setStyle(style: TextInputStyle): this {
-		this.data.style = style;
-		return this;
-	}
-
-	/**
-	 * Sets the minimum length of the input text.
-	 */
-	setMinLength(minLength: number): this {
-		this.data.minLength = minLength;
-		return this;
-	}
-
-	/**
-	 * Sets the maximum length of the input text.
-	 */
-	setMaxLength(maxLength: number): this {
-		this.data.maxLength = maxLength;
-		return this;
-	}
-
-	/**
-	 * Sets whether this text input is required.
-	 */
-	setRequired(required: boolean): this {
-		this.data.required = required;
-		return this;
-	}
-
-	/**
-	 * Sets the pre-filled value for this text input.
-	 */
-	setValue(value: string): this {
-		this.data.value = value;
-		return this;
-	}
-
-	/**
-	 * Sets the placeholder text shown when the input is empty.
-	 */
-	setPlaceholder(placeholder: string): this {
-		this.data.placeholder = placeholder;
-		return this;
-	}
-
-	/**
-	 * Serialises the builder into an API compatible text input payload.
-	 */
-	toJSON(): APITextInputComponent {
-		if (!this.data.customId) {
-			throw new Error("[TextInputBuilder] custom_id is required.");
-		}
-
-		// Note: label is optional when used inside a LabelComponent
-		// but required when used standalone in an ActionRow
-
-		return {
-			type: ComponentType.TextInput,
-			custom_id: this.data.customId,
-			style: this.data.style ?? TextInputStyle.Short,
-			min_length: this.data.minLength,
-			max_length: this.data.maxLength,
-			required: this.data.required,
-			value: this.data.value,
-			placeholder: this.data.placeholder,
-		};
-	}
+    return { type: ComponentType.TextInput, custom_id: customId, style: this.data.style ?? TextInputStyle.Short, min_length: this.data.minLength, max_length: this.data.maxLength, required: this.data.required, value: this.data.value, placeholder: this.data.placeholder };
+  }
 }
