@@ -1,149 +1,46 @@
-import type {
-	APIModalInteractionResponseCallbackComponent,
-	APIModalInteractionResponseCallbackData,
-	APITextInputComponent,
-	APIComponentInLabel,
-	APISelectMenuComponent,
-	APIFileUploadComponent,
-} from "discord-api-types/v10";
-import { ComponentType } from "discord-api-types/v10";
+import { ComponentType, type APIModalInteractionResponseCallbackData, type APIModalInteractionResponseCallbackComponent } from 'discord-api-types/v10';
+import { resolveJSONEncodable, type JSONEncodable } from './shared.js';
+import { ValidationError, assertDefined, assertStringLength } from '../types/validation.js';
 
-import { resolveJSONEncodable } from "./shared.js";
-import type { JSONEncodable } from "./shared.js";
+export type ModalComponentLike = JSONEncodable<APIModalInteractionResponseCallbackComponent> | APIModalInteractionResponseCallbackComponent;
 
-/** Values accepted when composing modal component rows. */
-export type ModalComponentLike =
-	| JSONEncodable<APIModalInteractionResponseCallbackComponent>
-	| APIModalInteractionResponseCallbackComponent
-	| JSONEncodable<APITextInputComponent>
-	| APITextInputComponent
-	| JSONEncodable<APIComponentInLabel>
-	| APIComponentInLabel
-	| JSONEncodable<APISelectMenuComponent>
-	| APISelectMenuComponent
-	| JSONEncodable<APIFileUploadComponent>
-	| APIFileUploadComponent;
-
-/** Shape describing initial modal data accepted by the builder. */
 export type ModalBuilderData = {
-	customId?: string;
-	title?: string;
-	components?: Iterable<ModalComponentLike>;
+  customId?: string;
+  title?: string;
+  components?: Iterable<ModalComponentLike>;
 };
 
-/** Builder for Discord modal interaction responses. */
-export class ModalBuilder
-	implements JSONEncodable<APIModalInteractionResponseCallbackData>
-{
-	private customId?: string;
-	private title?: string;
-	private components: ModalComponentLike[];
+export class ModalBuilder implements JSONEncodable<APIModalInteractionResponseCallbackData> {
+  private readonly data: ModalBuilderData;
 
-	/**
-	 * Creates a new modal builder with optional seed data.
-	 */
-	constructor(data: ModalBuilderData = {}) {
-		this.customId = data.customId;
-		this.title = data.title;
-		this.components = data.components ? Array.from(data.components) : [];
-	}
+  constructor(data: ModalBuilderData = {}) {
+    this.data = { ...data, components: data.components ? Array.from(data.components) : [] };
+  }
 
-	/**
-	 * Sets the custom identifier returned when the modal is submitted.
-	 */
-	setCustomId(customId: string): this {
-		this.customId = customId;
-		return this;
-	}
+  setCustomId(customId: string): this { this.data.customId = customId; return this; }
+  setTitle(title: string): this { this.data.title = title; return this; }
+  addComponents(...components: ModalComponentLike[]): this {
+    this.data.components = [...(this.data.components ?? []), ...components];
+    return this;
+  }
 
-	/**
-	 * Sets the modal title displayed to users.
-	 */
-	setTitle(title: string): this {
-		this.title = title;
-		return this;
-	}
+  toJSON(): APIModalInteractionResponseCallbackData {
+    const customId = assertDefined('ModalBuilder', 'custom_id', this.data.customId);
+    const title = assertDefined('ModalBuilder', 'title', this.data.title);
+    assertStringLength('ModalBuilder', 'custom_id', customId, 1, 100);
+    assertStringLength('ModalBuilder', 'title', title, 1, 45);
 
-	/**
-	 * Appends component rows to the modal body.
-	 */
-	addComponents(...components: ModalComponentLike[]): this {
-		this.components.push(...components);
-		return this;
-	}
+    const components = Array.from(this.data.components ?? []).map((c) => resolveJSONEncodable(c));
+    if (components.length === 0 || components.length > 5) {
+      throw new ValidationError('ModalBuilder', 'components', 'must contain between 1 and 5 components');
+    }
 
-	/**
-	 * Replaces all component rows for the modal.
-	 */
-	setComponents(components: Iterable<ModalComponentLike>): this {
-		this.components = Array.from(components);
-		return this;
-	}
+    for (const component of components) {
+      if (component.type !== ComponentType.ActionRow && component.type !== ComponentType.Label) {
+        throw new ValidationError('ModalBuilder', 'components', `invalid modal top-level component type ${component.type}`);
+      }
+    }
 
-	/**
-	 * Serialises the builder into an API compatible modal response payload.
-	 */
-	toJSON(): APIModalInteractionResponseCallbackData {
-		if (!this.customId) {
-			throw new Error("[ModalBuilder] custom id is required.");
-		}
-
-		if (!this.title) {
-			throw new Error("[ModalBuilder] title is required.");
-		}
-
-		if (this.components.length === 0) {
-			throw new Error(
-				"[ModalBuilder] at least one component is required.",
-			);
-		}
-
-		if (this.components.length > 5) {
-			throw new Error(
-				"[ModalBuilder] no more than 5 components can be provided.",
-			);
-		}
-
-		// Auto-wrap components that need wrapping
-		const normalizedComponents = this.components.map((component) => {
-			const resolved = resolveJSONEncodable(component);
-
-			if (
-				!resolved ||
-				typeof resolved !== "object" ||
-				!("type" in resolved)
-			) {
-				return resolved;
-			}
-
-			const componentType = resolved.type;
-
-			// If it's a TextInput, SelectMenu, or FileUpload component, wrap it in an ActionRow
-			// (ActionRows in modals are deprecated, but still supported for backwards compatibility)
-			if (
-				componentType === ComponentType.TextInput ||
-				componentType === ComponentType.StringSelect ||
-				componentType === ComponentType.UserSelect ||
-				componentType === ComponentType.RoleSelect ||
-				componentType === ComponentType.MentionableSelect ||
-				componentType === ComponentType.ChannelSelect ||
-				componentType === ComponentType.FileUpload ||
-				componentType === ComponentType.Label
-			) {
-				return {
-					type: ComponentType.ActionRow,
-					components: [resolved],
-				};
-			}
-
-			return resolved;
-		});
-
-		return {
-			custom_id: this.customId,
-			title: this.title,
-			components:
-				normalizedComponents as APIModalInteractionResponseCallbackComponent[],
-		};
-	}
+    return { custom_id: customId, title, components };
+  }
 }

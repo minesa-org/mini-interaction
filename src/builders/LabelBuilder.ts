@@ -1,82 +1,26 @@
-import {
-	ComponentType,
-	type APILabelComponent,
-	type APIComponentInLabel,
-} from "discord-api-types/v10";
+import { ComponentType, type APIComponentInLabel, type APILabelComponent } from 'discord-api-types/v10';
+import { resolveJSONEncodable, type JSONEncodable } from './shared.js';
+import { ValidationError, assertDefined, assertStringLength } from '../types/validation.js';
 
-import type { JSONEncodable } from "./shared.js";
-import { resolveJSONEncodable } from "./shared.js";
+export type LabelComponentLike = JSONEncodable<APIComponentInLabel> | APIComponentInLabel;
+export type LabelBuilderData = { label?: string; description?: string; component?: LabelComponentLike };
 
-/** Values accepted when composing label components. */
-export type LabelComponentLike =
-	| JSONEncodable<APIComponentInLabel>
-	| APIComponentInLabel;
-
-/** Shape describing initial label data accepted by the builder. */
-export type LabelBuilderData = {
-	label?: string;
-	description?: string;
-	component?: LabelComponentLike;
-};
-
-/** Builder for Discord label components used in modals. */
 export class LabelBuilder implements JSONEncodable<APILabelComponent> {
-	private data: LabelBuilderData;
+  private readonly data: LabelBuilderData;
+  constructor(data: LabelBuilderData = {}) { this.data = { ...data }; }
+  setLabel(label: string): this { this.data.label = label; return this; }
+  setDescription(description: string): this { this.data.description = description; return this; }
+  setComponent(component: LabelComponentLike): this { this.data.component = component; return this; }
 
-	/**
-	 * Creates a new label builder with optional seed data.
-	 */
-	constructor(data: LabelBuilderData = {}) {
-		this.data = {
-			label: data.label,
-			description: data.description,
-			component: data.component,
-		};
-	}
+  toJSON(): APILabelComponent {
+    const label = assertDefined('LabelBuilder', 'label', this.data.label);
+    const component = assertDefined('LabelBuilder', 'component', this.data.component);
+    assertStringLength('LabelBuilder', 'label', label, 1, 45);
+    if (this.data.description) assertStringLength('LabelBuilder', 'description', this.data.description, 1, 100);
 
-	/**
-	 * Sets the label text (max 45 characters).
-	 */
-	setLabel(label: string): this {
-		this.data.label = label;
-		return this;
-	}
+    const resolved = resolveJSONEncodable(component);
+    if (!('type' in resolved)) throw new ValidationError('LabelBuilder', 'component', 'must contain a valid component payload');
 
-	/**
-	 * Sets the optional description text (max 100 characters).
-	 */
-	setDescription(description: string): this {
-		this.data.description = description;
-		return this;
-	}
-
-	/**
-	 * Sets the component within the label.
-	 * Can be a TextInput, SelectMenu, or FileUpload component.
-	 */
-	setComponent(component: LabelComponentLike): this {
-		this.data.component = component;
-		return this;
-	}
-
-	/**
-	 * Serialises the builder into an API compatible label component payload.
-	 */
-	toJSON(): APILabelComponent {
-		if (!this.data.label) {
-			throw new Error("[LabelBuilder] label is required.");
-		}
-
-		if (!this.data.component) {
-			throw new Error("[LabelBuilder] component is required.");
-		}
-
-		return {
-			type: ComponentType.Label,
-			label: this.data.label,
-			description: this.data.description,
-			component: resolveJSONEncodable(this.data.component),
-		};
-	}
+    return { type: ComponentType.Label, label, description: this.data.description, component: resolved };
+  }
 }
-
