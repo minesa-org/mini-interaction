@@ -118,3 +118,17 @@ export type {
 	DiscordUser,
 } from "./oauth/DiscordOAuth.js";
 export { OAuthTokenStorage } from "./oauth/OAuthTokenStorage.js";
+
+
+// New v10 core modules
+export { DiscordRestClient } from "./core/http/DiscordRestClient.js";
+export type { DiscordRestClientOptions } from "./core/http/DiscordRestClient.js";
+export { InteractionContext } from "./core/interactions/InteractionContext.js";
+export type { InteractionContextOptions } from "./core/interactions/InteractionContext.js";
+export { verifyAndParseInteraction } from "./core/interactions/InteractionVerifier.js";
+export { InteractionRouter } from "./router/InteractionRouter.js";
+export { LegacyMiniInteractionAdapter } from "./compat/LegacyMiniInteractionAdapter.js";
+export type { LegacyAdapterOptions } from "./compat/LegacyMiniInteractionAdapter.js";
+export type { APIRadioComponent, APIRadioOption } from "./types/radio.js";
+export { RADIO_COMPONENT_TYPE } from "./types/radio.js";
+export { ValidationError } from "./types/validation.js";
