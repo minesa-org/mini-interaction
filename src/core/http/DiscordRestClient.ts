@@ -28,19 +28,36 @@ export class DiscordRestClient {
     let lastError: unknown;
     const { authenticated = true, ...requestInit } = init;
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
-      const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
-        ...requestInit,
-        headers: {
-          ...(authenticated ? { Authorization: `Bot ${this.options.token}` } : {}),
-          'Content-Type': 'application/json',
-          ...(requestInit.headers ?? {}),
-        },
-      });
+      let response: Response;
+      try {
+        response = await this.fetchImpl(`${this.baseUrl}${path}`, {
+          ...requestInit,
+          headers: {
+            ...(authenticated ? { Authorization: `Bot ${this.options.token}` } : {}),
+            'Content-Type': 'application/json',
+            ...(requestInit.headers ?? {}),
+          },
+        });
+      } catch (error) {
+        lastError = this.createRequestError(path, requestInit.method, error);
+        if (attempt < this.maxRetries) {
+          await sleep(150 * (attempt + 1));
+          continue;
+        }
+        break;
+      }
 
       if (response.status === 429) {
-        const retryAfter = Number(response.headers.get('retry-after') ?? '1');
-        await sleep(Math.ceil(retryAfter * 1000));
-        continue;
+        if (attempt < this.maxRetries) {
+          const retryAfter = Number(response.headers.get('retry-after') ?? '1');
+          await sleep(Math.ceil(retryAfter * 1000));
+          continue;
+        }
+
+        lastError = new Error(
+          `[DiscordRestClient] ${requestInit.method ?? 'GET'} ${path} failed: 429`,
+        );
+        break;
       }
 
       if (response.ok) {
@@ -57,6 +74,16 @@ export class DiscordRestClient {
       break;
     }
     throw lastError instanceof Error ? lastError : new Error('[DiscordRestClient] unknown request failure');
+  }
+
+  private createRequestError(path: string, method: string | undefined, error: unknown): Error {
+    const message =
+      error instanceof Error ? error.message : String(error);
+
+    return new Error(
+      `[DiscordRestClient] ${method ?? 'GET'} ${path} failed: ${message}`,
+      { cause: error instanceof Error ? error : undefined },
+    );
   }
 
   createFollowup(interactionToken: string, body: unknown): Promise<unknown> {
