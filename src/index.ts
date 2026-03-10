@@ -1,6 +1,3 @@
-/** Entry point re-exporting MiniInteraction helpers, builders, and shared types. */
-export { MiniInteraction } from "./clients/MiniInteraction.js";
-export type { RoleConnectionMetadataField } from "./clients/MiniInteraction.js";
 export {
 	CommandBuilder,
 	CommandContext,
@@ -37,21 +34,6 @@ export {
         AppCommandInteraction,
 } from "./utils/ContextMenuInteraction.js";
 export type {
-        InteractionFetchHandler,
-        InteractionNodeHandler,
-        InteractionHandlerResult,
-        InteractionRequest,
-        InteractionClientOptions,
-        DiscordOAuthAuthorizeContext,
-        DiscordOAuthCallbackOptions,
-        DiscordOAuthCallbackTemplates,
-        DiscordOAuthErrorTemplateContext,
-        DiscordOAuthServerErrorTemplateContext,
-        DiscordOAuthStateTemplateContext,
-        DiscordOAuthSuccessTemplateContext,
-        DiscordOAuthVerificationPageOptions,
-} from "./clients/MiniInteraction.js";
-export type {
         InteractionCommand,
         SlashCommandHandler,
         UserCommandHandler,
@@ -59,19 +41,6 @@ export type {
         AppCommandHandler,
         CommandHandler,
 } from "./types/Commands.js";
-export type {
-	ComponentCommand,
-	ButtonComponentHandler,
-	StringSelectComponentHandler,
-	RoleSelectComponentHandler,
-	UserSelectComponentHandler,
-	ChannelSelectComponentHandler,
-	MentionableSelectComponentHandler,
-	ComponentHandler,
-	ModalCommand,
-	ModalHandler,
-	InteractionHandler,
-} from "./clients/MiniInteraction.js";
 export {
 	MessageComponentInteraction,
 	ButtonInteraction,
@@ -87,8 +56,6 @@ export { ModalSubmitInteraction } from "./utils/ModalSubmitInteraction.js";
 export { RoleConnectionMetadataTypes } from "./types/RoleConnectionMetadataTypes.js";
 export { ChannelType } from "./types/ChannelType.js";
 export {
-	InteractionFollowUpFlags,
-	InteractionReplyFlags,
 	InteractionFlags,
 } from "./types/InteractionFlags.js";
 export { ButtonStyle } from "./types/ButtonStyle.js";
@@ -127,8 +94,6 @@ export { InteractionContext } from "./core/interactions/InteractionContext.js";
 export type { InteractionContextOptions } from "./core/interactions/InteractionContext.js";
 export { verifyAndParseInteraction } from "./core/interactions/InteractionVerifier.js";
 export { InteractionRouter } from "./router/InteractionRouter.js";
-export { LegacyMiniInteractionAdapter } from "./compat/LegacyMiniInteractionAdapter.js";
-export type { LegacyAdapterOptions } from "./compat/LegacyMiniInteractionAdapter.js";
 export type { APIRadioComponent, APIRadioOption } from "./types/radio.js";
 export { RADIO_COMPONENT_TYPE } from "./types/radio.js";
 export { ValidationError } from "./types/validation.js";

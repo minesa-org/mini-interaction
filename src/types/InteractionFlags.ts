@@ -6,7 +6,3 @@ export enum InteractionFlags {
 	SuppressEmbeds = MessageFlags.SuppressEmbeds,
 }
 
-/** @deprecated Use InteractionFlags instead. */
-export { InteractionFlags as InteractionReplyFlags };
-/** @deprecated Use InteractionFlags instead. */
-export { InteractionFlags as InteractionFollowUpFlags };

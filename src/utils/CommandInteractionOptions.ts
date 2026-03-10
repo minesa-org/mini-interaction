@@ -38,9 +38,8 @@ import {
 	normaliseInteractionMessageData,
 	normaliseMessageFlags,
 } from "./interactionMessageHelpers.js";
-import type {
-	InteractionFollowUpFlags,
-	InteractionReplyFlags,
+import {
+	InteractionFlags,
 } from "../types/InteractionFlags.js";
 
 type BasicInteractionOption =
