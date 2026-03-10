@@ -13,10 +13,7 @@ export type ActionRowComponent =
 	| APICheckboxComponent;
 
 /** Defines a message component structure for use in message builders. */
-export type MessageActionRowComponent = 
-	| APIComponentInMessageActionRow 
-	| APIRadioComponent 
-	| APICheckboxComponent;
+export type MessageActionRowComponent = APIComponentInMessageActionRow;
 
 /** Structure for an action row containing mini-interaction components. */
 export interface MiniActionRow<T extends ActionRowComponent = ActionRowComponent> {

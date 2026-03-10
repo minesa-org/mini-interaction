@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -34,6 +34,13 @@ import { createMessageComponentInteraction } from "../utils/MessageComponentInte
 import { createModalSubmitInteraction } from "../utils/ModalSubmitInteraction.js";
 import { DiscordRestClient } from "../core/http/DiscordRestClient.js";
 import { verifyAndParseInteraction } from "../core/interactions/InteractionVerifier.js";
+import {
+	generateOAuthUrl,
+	getDiscordUser,
+	getOAuthTokens,
+	type DiscordUser,
+	type OAuthTokens,
+} from "../oauth/DiscordOAuth.js";
 
 type TimeoutConfig = {
 	initialResponseTimeout?: number;
@@ -52,6 +59,7 @@ export type MiniInteractionOptions = {
 	publicKey?: string;
 	applicationId?: string;
 	token?: string;
+	guildId?: string;
 };
 
 type LoadedModules = {
@@ -62,11 +70,24 @@ type LoadedModules = {
 
 type ResponseState = "pending" | "deferred" | "responded";
 
+type OAuthPageTemplate = {
+	htmlFile: string;
+};
+
+type OAuthCallbackTemplates = {
+	success: OAuthPageTemplate;
+	missingCode: OAuthPageTemplate;
+	oauthError: OAuthPageTemplate;
+	invalidState: OAuthPageTemplate;
+	serverError: OAuthPageTemplate;
+};
+
 type NodeRequest = {
 	body?: unknown;
 	rawBody?: string | Uint8Array | Buffer;
 	headers: Record<string, string | string[] | undefined> | { get(name: string): string | null };
 	method?: string;
+	url?: string;
 	[Symbol.asyncIterator]?: () => AsyncIterableIterator<Uint8Array>;
 	on?: (event: string, listener: (...args: unknown[]) => void) => void;
 };
@@ -157,6 +178,137 @@ export class MiniInteraction {
 					console.error("[MiniInteraction] createNodeHandler failed", error);
 				}
 				this.sendJson(res, 500, { error: message });
+			}
+		};
+	}
+
+	async registerCommands(tokenOverride?: string): Promise<unknown> {
+		const modules = await this.loadModules();
+		const payload = modules.commands.map((command) => this.resolveCommandPayload(command));
+		const applicationId =
+			this.options.applicationId ??
+			process.env.DISCORD_APPLICATION_ID ??
+			process.env.DISCORD_APP_ID;
+
+		if (!applicationId) {
+			throw new Error(
+				"[MiniInteraction] Missing applicationId for command registration.",
+			);
+		}
+
+		const token =
+			tokenOverride ??
+			this.options.token ??
+			process.env.DISCORD_BOT_TOKEN ??
+			process.env.DISCORD_TOKEN;
+
+		if (!token) {
+			throw new Error(
+				"[MiniInteraction] Missing bot token for command registration.",
+			);
+		}
+
+		const rest = new DiscordRestClient({ applicationId, token });
+		const guildId = this.options.guildId ?? process.env.DISCORD_GUILD_ID;
+		const route = guildId
+			? `/applications/${applicationId}/guilds/${guildId}/commands`
+			: `/applications/${applicationId}/commands`;
+
+		if (this.options.debug) {
+			console.debug(
+				`[MiniInteraction] Registering ${payload.length} command(s) on ${guildId ? `guild ${guildId}` : "global"} scope.`,
+			);
+		}
+
+		return rest.request(route, {
+			method: "PUT",
+			body: JSON.stringify(payload),
+		});
+	}
+
+	discordOAuthVerificationPage(options: {
+		htmlFile: string;
+		scopes?: string[];
+	}): (req: NodeRequest, res: NodeResponse) => Promise<void> {
+		return async (_req: NodeRequest, res: NodeResponse) => {
+			const oauthConfig = this.getOAuthConfig();
+			const { url, state } = generateOAuthUrl(
+				oauthConfig,
+				options.scopes ?? [
+					"applications.commands",
+					"identify",
+					"guilds",
+					"role_connections.write",
+				],
+			);
+			const html = await this.loadHtmlFile(options.htmlFile);
+			const rendered = html.replaceAll("{{OAUTH_URL_RAW}}", url);
+			res.setHeader?.(
+				"Set-Cookie",
+				`mini_oauth_state=${encodeURIComponent(state)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=900`,
+			);
+			this.sendHtml(res, 200, rendered);
+		};
+	}
+
+	connectedOAuthPage(htmlFile: string): OAuthPageTemplate {
+		return { htmlFile };
+	}
+
+	failedOAuthPage(htmlFile: string): OAuthPageTemplate {
+		return { htmlFile };
+	}
+
+	discordOAuthCallback(options: {
+		templates: OAuthCallbackTemplates;
+		onAuthorize?: (payload: {
+			user: DiscordUser;
+			tokens: OAuthTokens;
+			req: NodeRequest;
+			res: NodeResponse;
+		}) => Promise<void> | void;
+	}): (req: NodeRequest, res: NodeResponse) => Promise<void> {
+		return async (req: NodeRequest, res: NodeResponse) => {
+			try {
+				const requestUrl = new URL(
+					req.url ?? "/",
+					process.env.DISCORD_REDIRECT_URI ?? "http://localhost",
+				);
+				const error = requestUrl.searchParams.get("error");
+				const code = requestUrl.searchParams.get("code");
+				const state = requestUrl.searchParams.get("state");
+				const cookieState = this.getCookie(req, "mini_oauth_state");
+
+				if (error) {
+					await this.renderOAuthTemplate(res, options.templates.oauthError);
+					return;
+				}
+
+				if (!code) {
+					await this.renderOAuthTemplate(res, options.templates.missingCode);
+					return;
+				}
+
+				if (state && cookieState && state !== cookieState) {
+					await this.renderOAuthTemplate(res, options.templates.invalidState);
+					return;
+				}
+
+				const tokens = await getOAuthTokens(code, this.getOAuthConfig());
+				const user = await getDiscordUser(tokens.access_token);
+
+				await options.onAuthorize?.({ user, tokens, req, res });
+
+				res.setHeader?.(
+					"Set-Cookie",
+					"mini_oauth_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+				);
+				await this.renderOAuthTemplate(res, options.templates.success);
+			} catch (error) {
+				if (this.options.debug) {
+					console.error("[MiniInteraction] discordOAuthCallback failed", error);
+				}
+				await this.renderOAuthTemplate(res, options.templates.serverError);
 			}
 		};
 	}
@@ -462,6 +614,16 @@ export class MiniInteraction {
 		return data.name;
 	}
 
+	private resolveCommandPayload(command: InteractionCommand): Record<string, unknown> {
+		const data = command.data as {
+			toJSON?: () => Record<string, unknown>;
+		};
+		if (typeof data.toJSON === "function") {
+			return data.toJSON();
+		}
+		return command.data as unknown as Record<string, unknown>;
+	}
+
 	private isCustomIdHandler(
 		value: unknown,
 	): value is InteractionComponent | InteractionModal {
@@ -533,6 +695,63 @@ export class MiniInteraction {
 		res.statusCode = statusCode;
 		res.setHeader?.("Content-Type", "application/json; charset=utf-8");
 		res.end(JSON.stringify(body));
+	}
+
+	private async loadHtmlFile(htmlFile: string): Promise<string> {
+		const absolutePath = path.resolve(this.projectRoot, htmlFile);
+		return readFile(absolutePath, "utf8");
+	}
+
+	private async renderOAuthTemplate(
+		res: NodeResponse,
+		template: OAuthPageTemplate,
+	): Promise<void> {
+		const html = await this.loadHtmlFile(template.htmlFile);
+		this.sendHtml(res, 200, html);
+	}
+
+	private sendHtml(res: NodeResponse, statusCode: number, html: string): void {
+		if (typeof res.status === "function" && typeof res.end === "function") {
+			res.status(statusCode);
+		}
+		res.statusCode = statusCode;
+		res.setHeader?.("Content-Type", "text/html; charset=utf-8");
+		res.end(html);
+	}
+
+	private getOAuthConfig(): {
+		appId: string;
+		appSecret: string;
+		redirectUri: string;
+	} {
+		const appId =
+			this.options.applicationId ??
+			process.env.DISCORD_APPLICATION_ID ??
+			process.env.DISCORD_APP_ID;
+		const appSecret = process.env.DISCORD_CLIENT_SECRET ?? process.env.DISCORD_APPLICATION_SECRET;
+		const redirectUri = process.env.DISCORD_REDIRECT_URI;
+
+		if (!appId || !appSecret || !redirectUri) {
+			throw new Error(
+				"[MiniInteraction] Missing OAuth config. Expected DISCORD_APPLICATION_ID, DISCORD_CLIENT_SECRET and DISCORD_REDIRECT_URI.",
+			);
+		}
+
+		return { appId, appSecret, redirectUri };
+	}
+
+	private getCookie(req: NodeRequest, name: string): string | undefined {
+		const cookieHeader = this.getHeader(req.headers, "cookie");
+		if (!cookieHeader) return undefined;
+
+		for (const rawPart of cookieHeader.split(";")) {
+			const [rawKey, ...rawValue] = rawPart.trim().split("=");
+			if (rawKey === name) {
+				return decodeURIComponent(rawValue.join("="));
+			}
+		}
+
+		return undefined;
 	}
 }
 
