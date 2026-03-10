@@ -306,8 +306,10 @@ export function createModalSubmitInteraction(
 
 	const getAttachment = (customId: string): APIAttachment | undefined => {
 		const value = getComponentValue(customId);
-		if (!value || Array.isArray(value)) return undefined;
-		return (interaction.data.resolved as any)?.attachments?.[value];
+		if (!value) return undefined;
+		const attachmentId = Array.isArray(value) ? value[0] : value;
+		if (!attachmentId) return undefined;
+		return (interaction.data.resolved as any)?.attachments?.[attachmentId];
 	};
 
 	return Object.assign(interaction, {
