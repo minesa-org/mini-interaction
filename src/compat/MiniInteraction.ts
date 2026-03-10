@@ -82,6 +82,8 @@ type OAuthCallbackTemplates = {
 	serverError: OAuthPageTemplate;
 };
 
+type InitialResponseCommitter = (response: APIInteractionResponse) => boolean;
+
 type NodeRequest = {
 	body?: unknown;
 	rawBody?: string | Uint8Array | Buffer;
@@ -131,6 +133,14 @@ export class MiniInteraction {
 
 	createNodeHandler() {
 		return async (req: NodeRequest, res: NodeResponse): Promise<void> => {
+			let responseSent = false;
+			const commitInitialResponse: InitialResponseCommitter = (response) => {
+				if (responseSent) return false;
+				this.sendJson(res, 200, response);
+				responseSent = true;
+				return true;
+			};
+
 			try {
 				const body = await this.readRawBody(req);
 				const signature = this.getHeader(req.headers, "x-signature-ed25519");
@@ -163,21 +173,24 @@ export class MiniInteraction {
 					return;
 				}
 
-				const response = await this.dispatch(interaction);
-				this.sendJson(
-					res,
-					200,
-					response ?? {
-						type: InteractionResponseType.DeferredChannelMessageWithSource,
-					},
-				);
+				const response = await this.dispatch(interaction, commitInitialResponse);
+				if (!responseSent) {
+					this.sendJson(
+						res,
+						200,
+						response ?? this.getDefaultInitialResponse(interaction),
+					);
+					responseSent = true;
+				}
 			} catch (error) {
 				const message =
 					error instanceof Error ? error.message : "[MiniInteraction] Unknown error";
 				if (this.options.debug) {
 					console.error("[MiniInteraction] createNodeHandler failed", error);
 				}
-				this.sendJson(res, 500, { error: message });
+				if (!responseSent) {
+					this.sendJson(res, 500, { error: message });
+				}
 			}
 		};
 	}
@@ -315,6 +328,7 @@ export class MiniInteraction {
 
 	private async dispatch(
 		interaction: APIInteraction,
+		commitInitialResponse?: InitialResponseCommitter,
 	): Promise<APIInteractionResponse | void> {
 		const modules = await this.loadModules();
 
@@ -323,7 +337,11 @@ export class MiniInteraction {
 				(candidate) => this.getCommandName(candidate) === interaction.data.name,
 			);
 			if (!command) return undefined;
-			return this.executeCommandHandler(command.handler, interaction);
+			return this.executeCommandHandler(
+				command.handler,
+				interaction,
+				commitInitialResponse,
+			);
 		}
 
 		if (interaction.type === InteractionType.MessageComponent) {
@@ -331,7 +349,11 @@ export class MiniInteraction {
 				(candidate) => candidate.customId === interaction.data.custom_id,
 			);
 			if (!component) return undefined;
-			return this.executeComponentHandler(component.handler, interaction);
+			return this.executeComponentHandler(
+				component.handler,
+				interaction,
+				commitInitialResponse,
+			);
 		}
 
 		if (interaction.type === InteractionType.ModalSubmit) {
@@ -339,7 +361,11 @@ export class MiniInteraction {
 				(candidate) => candidate.customId === interaction.data.custom_id,
 			);
 			if (!modal) return undefined;
-			return this.executeModalHandler(modal.handler, interaction);
+			return this.executeModalHandler(
+				modal.handler,
+				interaction,
+				commitInitialResponse,
+			);
 		}
 
 		return undefined;
@@ -348,54 +374,67 @@ export class MiniInteraction {
 	private async executeCommandHandler(
 		handler: CommandHandler,
 		interaction: APIApplicationCommandInteraction,
+		commitInitialResponse?: InitialResponseCommitter,
 	): Promise<APIInteractionResponse | void> {
-		return this.runWithResponseLifecycle(interaction, async (helpers) => {
-			switch (interaction.data.type) {
-				case ApplicationCommandType.ChatInput:
-					return (handler as SlashCommandHandler)(
-						createCommandInteraction(interaction as never, helpers),
-					);
-				case ApplicationCommandType.User:
-					return (handler as UserCommandHandler)(
-						createUserContextMenuInteraction(interaction as never, helpers),
-					);
-				case ApplicationCommandType.Message:
-					return (handler as MessageCommandHandler)(
-						createMessageContextMenuInteraction(interaction as never, helpers),
-					);
-				default:
-					if ((interaction.data as { type?: number }).type === ApplicationCommandType.PrimaryEntryPoint) {
-						return (handler as AppCommandHandler)(
-							createAppCommandInteraction(interaction as never, helpers),
+		return this.runWithResponseLifecycle(
+			interaction,
+			async (helpers) => {
+				switch (interaction.data.type) {
+					case ApplicationCommandType.ChatInput:
+						return (handler as SlashCommandHandler)(
+							createCommandInteraction(interaction as never, helpers),
 						);
-					}
-					throw new Error(
-						`[MiniInteraction] Unsupported application command type: ${String((interaction.data as { type?: number }).type)}`,
-					);
-			}
-		});
+					case ApplicationCommandType.User:
+						return (handler as UserCommandHandler)(
+							createUserContextMenuInteraction(interaction as never, helpers),
+						);
+					case ApplicationCommandType.Message:
+						return (handler as MessageCommandHandler)(
+							createMessageContextMenuInteraction(interaction as never, helpers),
+						);
+					default:
+						if ((interaction.data as { type?: number }).type === ApplicationCommandType.PrimaryEntryPoint) {
+							return (handler as AppCommandHandler)(
+								createAppCommandInteraction(interaction as never, helpers),
+							);
+						}
+						throw new Error(
+							`[MiniInteraction] Unsupported application command type: ${String((interaction.data as { type?: number }).type)}`,
+						);
+				}
+			},
+			commitInitialResponse,
+		);
 	}
 
 	private async executeComponentHandler(
 		handler: InteractionComponent["handler"],
 		interaction: APIMessageComponentInteraction,
+		commitInitialResponse?: InitialResponseCommitter,
 	): Promise<APIInteractionResponse | void> {
-		return this.runWithResponseLifecycle(interaction, async (helpers) =>
-			handler(
-				createMessageComponentInteraction(
-					interaction,
-					helpers,
-				) as ComponentInteraction,
-			),
+		return this.runWithResponseLifecycle(
+			interaction,
+			async (helpers) =>
+				handler(
+					createMessageComponentInteraction(
+						interaction,
+						helpers,
+					) as ComponentInteraction,
+				),
+			commitInitialResponse,
 		);
 	}
 
 	private async executeModalHandler(
 		handler: InteractionModal["handler"],
 		interaction: APIModalSubmitInteraction,
+		commitInitialResponse?: InitialResponseCommitter,
 	): Promise<APIInteractionResponse | void> {
-		return this.runWithResponseLifecycle(interaction, async (helpers) =>
-			handler(createModalSubmitInteraction(interaction, helpers)),
+		return this.runWithResponseLifecycle(
+			interaction,
+			async (helpers) =>
+				handler(createModalSubmitInteraction(interaction, helpers)),
+			commitInitialResponse,
 		);
 	}
 
@@ -417,9 +456,12 @@ export class MiniInteraction {
 				) => Promise<void>;
 			},
 		) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void,
+		commitInitialResponse?: InitialResponseCommitter,
 	): Promise<APIInteractionResponse | void> {
 		let ackResponse: APIInteractionResponse | undefined;
 		let initialResponseCommitted = false;
+		let followUpSent = false;
+		let committedInitialResponse: APIInteractionResponse | undefined;
 		const helpers = {
 			// Legacy helper contracts use canRespond for both initial acknowledgements
 			// and later editReply/followUp calls. The compat layer does not currently
@@ -435,6 +477,10 @@ export class MiniInteraction {
 			},
 			onAck: (response: APIInteractionResponse) => {
 				ackResponse = response;
+				if (!initialResponseCommitted && commitInitialResponse?.(response)) {
+					initialResponseCommitted = true;
+					committedInitialResponse = response;
+				}
 			},
 			sendFollowUp: async (
 				token: string,
@@ -453,9 +499,11 @@ export class MiniInteraction {
 				const responseData = "data" in response ? response.data ?? {} : {};
 				if (messageId === "@original") {
 					await this.rest.editOriginal(token, responseData);
+					followUpSent = true;
 					return;
 				}
 				await this.rest.createFollowup(token, responseData);
+				followUpSent = true;
 			},
 		};
 
@@ -472,10 +520,14 @@ export class MiniInteraction {
 								`[MiniInteraction] Auto-deferred interaction ${interaction.id} after ${autoDeferMs}ms.`,
 							);
 						}
-						ackResponse = {
-							type: InteractionResponseType.DeferredChannelMessageWithSource,
-						};
+						const deferredResponse =
+							this.getDefaultInitialResponse(interaction);
+						ackResponse = deferredResponse;
 						helpers.trackResponse(interaction.id, interaction.token, "deferred");
+						if (!initialResponseCommitted && commitInitialResponse?.(deferredResponse)) {
+							initialResponseCommitted = true;
+							committedInitialResponse = deferredResponse;
+						}
 					}, autoDeferMs)
 				: undefined;
 
@@ -496,6 +548,20 @@ export class MiniInteraction {
 				console.debug(
 					`[MiniInteraction] Interaction ${interaction.id} completed with ${result ? "explicit" : "fallback"} response.`,
 				);
+			}
+			if (
+				initialResponseCommitted &&
+				result &&
+				!followUpSent &&
+				committedInitialResponse &&
+				this.isDeferredResponse(committedInitialResponse) &&
+				!this.isDeferredResponse(result)
+			) {
+				const responseData = "data" in result ? result.data ?? {} : {};
+				await this.rest.editOriginal(interaction.token, responseData);
+			}
+			if (initialResponseCommitted) {
+				return undefined;
 			}
 			initialResponseCommitted = true;
 			return result ?? ackResponse;
@@ -603,6 +669,21 @@ export class MiniInteraction {
 		);
 
 		return results.flat();
+	}
+
+	private getDefaultInitialResponse(interaction: APIInteraction): APIInteractionResponse {
+		if (interaction.type === InteractionType.MessageComponent) {
+			return { type: InteractionResponseType.DeferredMessageUpdate };
+		}
+
+		return { type: InteractionResponseType.DeferredChannelMessageWithSource };
+	}
+
+	private isDeferredResponse(response: APIInteractionResponse): boolean {
+		return (
+			response.type === InteractionResponseType.DeferredChannelMessageWithSource ||
+			response.type === InteractionResponseType.DeferredMessageUpdate
+		);
 	}
 
 	private isImportableModule(filePath: string): boolean {
