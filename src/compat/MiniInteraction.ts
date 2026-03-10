@@ -514,6 +514,8 @@ export class MiniInteraction {
 		const autoDeferTimer =
 			this.options.timeoutConfig?.autoDeferSlowOperations === true
 				? setTimeout(() => {
+						if (initialResponseCommitted) return;
+						if (this.responseStates.get(interaction.id)) return;
 						if (!helpers.canRespond(interaction.id)) return;
 						if (this.options.debug || this.options.timeoutConfig?.enableResponseDebugLogging) {
 							console.warn(
