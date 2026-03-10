@@ -1,6 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { waitUntil as vercelWaitUntil } from "@vercel/functions";
 
 import {
 	ApplicationCommandType,
@@ -134,10 +135,15 @@ export class MiniInteraction {
 	createNodeHandler() {
 		return async (req: NodeRequest, res: NodeResponse): Promise<void> => {
 			let responseSent = false;
+			let resolveInitialCommit: (() => void) | undefined;
+			const initialCommitPromise = new Promise<void>((resolve) => {
+				resolveInitialCommit = resolve;
+			});
 			const commitInitialResponse: InitialResponseCommitter = (response) => {
 				if (responseSent) return false;
 				this.sendJson(res, 200, response);
 				responseSent = true;
+				resolveInitialCommit?.();
 				return true;
 			};
 
@@ -173,7 +179,33 @@ export class MiniInteraction {
 					return;
 				}
 
-				const response = await this.dispatch(interaction, commitInitialResponse);
+				const dispatchPromise = this.dispatch(interaction, commitInitialResponse);
+				const backgroundPromise = dispatchPromise.catch((error) => {
+					if (this.options.debug) {
+						console.error(
+							"[MiniInteraction] Background interaction processing failed",
+							error,
+						);
+					}
+				});
+				const settled = await Promise.race([
+					dispatchPromise.then(
+						(response) => ({ kind: "result" as const, response }),
+						(error) => ({ kind: "error" as const, error }),
+					),
+					initialCommitPromise.then(() => ({ kind: "committed" as const })),
+				]);
+
+				if (settled.kind === "committed") {
+					this.scheduleBackgroundTask(backgroundPromise);
+					return;
+				}
+
+				if (settled.kind === "error") {
+					throw settled.error;
+				}
+
+				const response = settled.response;
 				if (!responseSent) {
 					this.sendJson(
 						res,
@@ -671,6 +703,14 @@ export class MiniInteraction {
 		);
 
 		return results.flat();
+	}
+
+	private scheduleBackgroundTask(promise: Promise<unknown>): void {
+		try {
+			vercelWaitUntil(promise);
+		} catch {
+			void promise;
+		}
 	}
 
 	private getDefaultInitialResponse(interaction: APIInteraction): APIInteractionResponse {
