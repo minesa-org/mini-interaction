@@ -27,6 +27,8 @@ const COMPONENTS_V2_TYPES = new Set<number>([
 	ComponentType.Thumbnail,
 	18, // Label
 	19, // FileUpload
+	2001, // Radio
+	2002, // Checkbox
 ]);
 
 /** Union of helper flag enums and raw Discord message flags. */

@@ -40,6 +40,9 @@ export type {
         MessageCommandHandler,
         AppCommandHandler,
         CommandHandler,
+        ComponentInteraction,
+        InteractionComponent,
+        InteractionModal,
 } from "./types/Commands.js";
 export {
 	MessageComponentInteraction,
@@ -49,6 +52,8 @@ export {
 	UserSelectInteraction,
 	ChannelSelectInteraction,
 	MentionableSelectInteraction,
+        RadioInteraction,
+        CheckboxInteraction,
 	ResolvedUserOption as ComponentResolvedUserOption,
 	ResolvedMentionableOption as ComponentResolvedMentionableOption,
 } from "./utils/MessageComponentInteraction.js";
@@ -65,6 +70,7 @@ export { MiniPermFlags } from "./types/PermissionFlags.js";
 export type {
 	ActionRowComponent,
 	MessageActionRowComponent,
+        InteractionComponentData,
 } from "./types/ComponentTypes.js";
 export * from "./builders/index.js";
 export { MiniDataBuilder } from "./database/MiniDataBuilder.js";
@@ -96,4 +102,6 @@ export { verifyAndParseInteraction } from "./core/interactions/InteractionVerifi
 export { InteractionRouter } from "./router/InteractionRouter.js";
 export type { APIRadioComponent, APIRadioOption } from "./types/radio.js";
 export { RADIO_COMPONENT_TYPE } from "./types/radio.js";
+export type { APICheckboxComponent, APICheckboxOption } from "./types/checkbox.js";
+export { CHECKBOX_COMPONENT_TYPE } from "./types/checkbox.js";
 export { ValidationError } from "./types/validation.js";

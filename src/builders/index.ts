@@ -64,3 +64,5 @@ export type { JSONEncodable } from "./shared.js";
 
 export { RadioBuilder } from "./RadioBuilder.js";
 export type { RadioBuilderData } from "./RadioBuilder.js";
+export { CheckboxBuilder } from "./CheckboxBuilder.js";
+export type { CheckboxBuilderData } from "./CheckboxBuilder.js";
