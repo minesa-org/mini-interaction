@@ -419,9 +419,13 @@ export class MiniInteraction {
 		) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void,
 	): Promise<APIInteractionResponse | void> {
 		let ackResponse: APIInteractionResponse | undefined;
+		let initialResponseCommitted = false;
 		const helpers = {
-			canRespond: (interactionId: string) =>
-				(this.responseStates.get(interactionId) ?? "pending") === "pending",
+			// Legacy helper contracts use canRespond for both initial acknowledgements
+			// and later editReply/followUp calls. The compat layer does not currently
+			// track Discord token expiry, so we only block on real expiry outside of
+			// this helper and allow the wrapped interaction methods to complete.
+			canRespond: (_interactionId: string) => true,
 			trackResponse: (
 				interactionId: string,
 				_token: string,
@@ -437,6 +441,15 @@ export class MiniInteraction {
 				response: APIInteractionResponse,
 				messageId?: string,
 			) => {
+				// If the initial interaction response has not been sent yet, collapse the
+				// deferred/edit flow back into a single immediate response instead of
+				// calling the webhook endpoints early.
+				if (!initialResponseCommitted) {
+					ackResponse = response;
+					this.responseStates.set(interaction.id, "responded");
+					return;
+				}
+
 				const responseData = "data" in response ? response.data ?? {} : {};
 				if (messageId === "@original") {
 					await this.rest.editOriginal(token, responseData);
@@ -484,6 +497,7 @@ export class MiniInteraction {
 					`[MiniInteraction] Interaction ${interaction.id} completed with ${result ? "explicit" : "fallback"} response.`,
 				);
 			}
+			initialResponseCommitted = true;
 			return result ?? ackResponse;
 		} finally {
 			if (autoDeferTimer) clearTimeout(autoDeferTimer);
