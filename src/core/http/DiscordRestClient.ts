@@ -21,15 +21,19 @@ export class DiscordRestClient {
     this.maxRetries = options.maxRetries ?? 3;
   }
 
-  async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  async request<T>(
+    path: string,
+    init: RequestInit & { authenticated?: boolean } = {},
+  ): Promise<T> {
     let lastError: unknown;
+    const { authenticated = true, ...requestInit } = init;
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
       const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
-        ...init,
+        ...requestInit,
         headers: {
-          Authorization: `Bot ${this.options.token}`,
+          ...(authenticated ? { Authorization: `Bot ${this.options.token}` } : {}),
           'Content-Type': 'application/json',
-          ...(init.headers ?? {}),
+          ...(requestInit.headers ?? {}),
         },
       });
 
@@ -49,7 +53,7 @@ export class DiscordRestClient {
         continue;
       }
 
-      lastError = new Error(`[DiscordRestClient] ${init.method ?? 'GET'} ${path} failed: ${response.status}`);
+      lastError = new Error(`[DiscordRestClient] ${requestInit.method ?? 'GET'} ${path} failed: ${response.status}`);
       break;
     }
     throw lastError instanceof Error ? lastError : new Error('[DiscordRestClient] unknown request failure');
@@ -59,6 +63,7 @@ export class DiscordRestClient {
     return this.request(`/webhooks/${this.options.applicationId}/${interactionToken}`, {
       method: 'POST',
       body: JSON.stringify(body),
+      authenticated: false,
     });
   }
 
@@ -66,6 +71,7 @@ export class DiscordRestClient {
     return this.request(`/webhooks/${this.options.applicationId}/${interactionToken}/messages/@original`, {
       method: 'PATCH',
       body: JSON.stringify(body),
+      authenticated: false,
     });
   }
 }
