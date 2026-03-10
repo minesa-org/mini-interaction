@@ -100,6 +100,11 @@ export { InteractionContext } from "./core/interactions/InteractionContext.js";
 export type { InteractionContextOptions } from "./core/interactions/InteractionContext.js";
 export { verifyAndParseInteraction } from "./core/interactions/InteractionVerifier.js";
 export { InteractionRouter } from "./router/InteractionRouter.js";
+export {
+	MiniInteraction,
+	LegacyMiniInteractionAdapter,
+} from "./compat/MiniInteraction.js";
+export type { MiniInteractionOptions } from "./compat/MiniInteraction.js";
 export type { APIRadioComponent, APIRadioOption } from "./types/radio.js";
 export { RADIO_COMPONENT_TYPE } from "./types/radio.js";
 export type { APICheckboxComponent, APICheckboxOption } from "./types/checkbox.js";
