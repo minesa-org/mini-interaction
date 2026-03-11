@@ -1,7 +1,10 @@
 import type { APIChannel, APIMessage } from "discord-api-types/v10";
 
 import type { DiscordRestClient } from "../http/DiscordRestClient.js";
-import type { DiscordStartThreadOptions } from "./message-payloads.js";
+import type {
+	DiscordReaction,
+	DiscordStartThreadOptions,
+} from "./message-payloads.js";
 
 export class DiscordSentMessage {
 	constructor(
@@ -25,6 +28,11 @@ export class DiscordSentMessage {
 			messageId: this.id,
 			...options,
 		});
+	}
+
+	async react(reaction: DiscordReaction): Promise<this> {
+		await this.rest.addReaction(this.channelId, this.id, reaction);
+		return this;
 	}
 
 	toJSON(): APIMessage {

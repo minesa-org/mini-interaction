@@ -100,6 +100,7 @@ export type { DiscordRestClientOptions } from "./core/http/DiscordRestClient.js"
 export { DiscordSentMessage } from "./core/messages/DiscordSentMessage.js";
 export type {
 	DiscordMessageFile,
+	DiscordReaction,
 	DiscordSendMessageOptions,
 	DiscordStartThreadOptions,
 	DiscordWebhookSendOptions,

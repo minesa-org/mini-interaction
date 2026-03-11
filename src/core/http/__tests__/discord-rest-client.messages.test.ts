@@ -54,6 +54,46 @@ test("sendMessage sends channel messages and returns a thread-capable wrapper", 
 	assert.match(String(calls[0].init.body), /payload|components|flags/);
 });
 
+test("sentMessage.react supports custom emoji strings and emoji objects", async () => {
+	const calls: Array<{ input: string; init: RequestInit }> = [];
+	const fetchImpl: typeof fetch = (async (input, init) => {
+		calls.push({ input: String(input), init: init ?? {} });
+
+		if (calls.length === 1) {
+			return new Response(
+				JSON.stringify({ id: "msg_react", channel_id: "chan_react" }),
+				{ status: 200 },
+			);
+		}
+
+		return new Response(null, { status: 204 });
+	}) as typeof fetch;
+
+	const rest = new DiscordRestClient({
+		token: "token",
+		applicationId: "app",
+		fetchImplementation: fetchImpl,
+	});
+
+	const sentMessage = await rest.sendMessage({
+		channelId: "chan_react",
+		content: "React to me",
+	});
+
+	await sentMessage.react("<:wave:1234567890>");
+	await sentMessage.react({ name: "thumbsup", id: "999" });
+
+	assert.equal(calls.length, 3);
+	assert.match(
+		calls[1].input,
+		/\/channels\/chan_react\/messages\/msg_react\/reactions\/wave%3A1234567890\/@me$/,
+	);
+	assert.match(
+		calls[2].input,
+		/\/channels\/chan_react\/messages\/msg_react\/reactions\/thumbsup%3A999\/@me$/,
+	);
+});
+
 test("sendMessage uses multipart form-data when files are provided", async () => {
 	let capturedBody: BodyInit | null | undefined;
 	const fetchImpl: typeof fetch = (async (_input, init) => {

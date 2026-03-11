@@ -41,6 +41,14 @@ export type DiscordWebhookSendOptions = BaseDiscordMessageOptions & {
 	avatarUrl?: string;
 };
 
+export type DiscordReaction =
+	| string
+	| {
+			name: string;
+			id?: string;
+			animated?: boolean;
+	  };
+
 export function normaliseDiscordMessagePayload(
 	options: BaseDiscordMessageOptions,
 ): Record<string, unknown> {

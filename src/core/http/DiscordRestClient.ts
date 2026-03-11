@@ -5,6 +5,7 @@ import { DiscordSentMessage } from '../messages/DiscordSentMessage.js';
 import {
   createMessageRequestInit,
   type BaseDiscordMessageOptions,
+  type DiscordReaction,
   type DiscordSendMessageOptions,
   type DiscordStartThreadOptions,
 } from '../messages/message-payloads.js';
@@ -175,6 +176,19 @@ export class DiscordRestClient {
     });
   }
 
+  addReaction(
+    channelId: string,
+    messageId: string,
+    reaction: DiscordReaction,
+  ): Promise<void> {
+    return this.request<void>(
+      `/channels/${channelId}/messages/${messageId}/reactions/${encodeDiscordReaction(reaction)}/@me`,
+      {
+        method: 'PUT',
+      },
+    );
+  }
+
   webhook(id: string, token: string): DiscordWebhook {
     return new DiscordWebhook(this, id, token);
   }
@@ -182,4 +196,24 @@ export class DiscordRestClient {
 
 function getDefaultContentTypeHeader(body: RequestInit['body']): HeadersInit {
   return body instanceof FormData ? {} : { 'Content-Type': 'application/json' };
+}
+
+function encodeDiscordReaction(reaction: DiscordReaction): string {
+  if (typeof reaction !== 'string') {
+    return encodeURIComponent(reaction.id ? `${reaction.name}:${reaction.id}` : reaction.name);
+  }
+
+  const trimmed = reaction.trim();
+
+  const customEmojiMatch = trimmed.match(/^<a?:([^:>]+):(\d+)>$/);
+  if (customEmojiMatch) {
+    const [, name, id] = customEmojiMatch;
+    return encodeURIComponent(`${name}:${id}`);
+  }
+
+  if (/^[^:\s]+:\d+$/.test(trimmed)) {
+    return encodeURIComponent(trimmed);
+  }
+
+  return encodeURIComponent(trimmed);
 }
