@@ -1,4 +1,14 @@
 import { setTimeout as sleep } from 'node:timers/promises';
+import type { APIChannel, APIMessage } from 'discord-api-types/v10';
+
+import { DiscordSentMessage } from '../messages/DiscordSentMessage.js';
+import {
+  createMessageRequestInit,
+  type BaseDiscordMessageOptions,
+  type DiscordSendMessageOptions,
+  type DiscordStartThreadOptions,
+} from '../messages/message-payloads.js';
+import { DiscordWebhook } from '../webhooks/DiscordWebhook.js';
 
 type FetchLike = typeof fetch;
 
@@ -34,7 +44,7 @@ export class DiscordRestClient {
           ...requestInit,
           headers: {
             ...(authenticated ? { Authorization: `Bot ${this.options.token}` } : {}),
-            'Content-Type': 'application/json',
+            ...getDefaultContentTypeHeader(requestInit.body),
             ...(requestInit.headers ?? {}),
           },
         });
@@ -101,4 +111,75 @@ export class DiscordRestClient {
       authenticated: false,
     });
   }
+
+  async createFollowupMessage(
+    interactionToken: string,
+    options: BaseDiscordMessageOptions,
+  ): Promise<DiscordSentMessage> {
+    const requestInit = createMessageRequestInit(options);
+    const message = await this.request<APIMessage>(
+      `/webhooks/${this.options.applicationId}/${interactionToken}`,
+      {
+        method: 'POST',
+        ...requestInit,
+        authenticated: false,
+      },
+    );
+
+    return new DiscordSentMessage(this, message);
+  }
+
+  async editOriginalMessage(
+    interactionToken: string,
+    options: BaseDiscordMessageOptions,
+  ): Promise<DiscordSentMessage> {
+    const requestInit = createMessageRequestInit(options);
+    const message = await this.request<APIMessage>(
+      `/webhooks/${this.options.applicationId}/${interactionToken}/messages/@original`,
+      {
+        method: 'PATCH',
+        ...requestInit,
+        authenticated: false,
+      },
+    );
+
+    return new DiscordSentMessage(this, message);
+  }
+
+  async sendMessage(options: DiscordSendMessageOptions): Promise<DiscordSentMessage> {
+    const { channelId, ...messageOptions } = options;
+    const requestInit = createMessageRequestInit(messageOptions);
+    const message = await this.request<APIMessage>(`/channels/${channelId}/messages`, {
+      method: 'POST',
+      ...requestInit,
+    });
+
+    return new DiscordSentMessage(this, message);
+  }
+
+  send(options: DiscordSendMessageOptions): Promise<DiscordSentMessage> {
+    return this.sendMessage(options);
+  }
+
+  async startThread(options: DiscordStartThreadOptions): Promise<APIChannel> {
+    const { channelId, messageId, reason, ...body } = options;
+
+    return this.request<APIChannel>(`/channels/${channelId}/messages/${messageId}/threads`, {
+      method: 'POST',
+      body: JSON.stringify({
+        auto_archive_duration: body.autoArchiveDuration,
+        rate_limit_per_user: body.rateLimitPerUser,
+        name: body.name,
+      }),
+      headers: reason ? { 'X-Audit-Log-Reason': reason } : undefined,
+    });
+  }
+
+  webhook(id: string, token: string): DiscordWebhook {
+    return new DiscordWebhook(this, id, token);
+  }
+}
+
+function getDefaultContentTypeHeader(body: RequestInit['body']): HeadersInit {
+  return body instanceof FormData ? {} : { 'Content-Type': 'application/json' };
 }

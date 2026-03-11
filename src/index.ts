@@ -65,6 +65,7 @@ export {
 } from "./types/InteractionFlags.js";
 export { ButtonStyle } from "./types/ButtonStyle.js";
 export { SeparatorSpacingSize } from "./types/SeparatorSpacingSize.js";
+export { MessageFlags, type APIAllowedMentions } from "discord-api-types/v10";
 export { TextInputStyle } from "discord-api-types/v10";
 export { MiniPermFlags } from "./types/PermissionFlags.js";
 export type {
@@ -96,6 +97,14 @@ export { OAuthTokenStorage } from "./oauth/OAuthTokenStorage.js";
 // New v10 core modules
 export { DiscordRestClient } from "./core/http/DiscordRestClient.js";
 export type { DiscordRestClientOptions } from "./core/http/DiscordRestClient.js";
+export { DiscordSentMessage } from "./core/messages/DiscordSentMessage.js";
+export type {
+	DiscordMessageFile,
+	DiscordSendMessageOptions,
+	DiscordStartThreadOptions,
+	DiscordWebhookSendOptions,
+} from "./core/messages/message-payloads.js";
+export { DiscordWebhook } from "./core/webhooks/DiscordWebhook.js";
 export { InteractionContext } from "./core/interactions/InteractionContext.js";
 export type { InteractionContextOptions } from "./core/interactions/InteractionContext.js";
 export { verifyAndParseInteraction } from "./core/interactions/InteractionVerifier.js";
