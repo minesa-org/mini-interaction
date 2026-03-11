@@ -122,5 +122,20 @@ function toBlob(file: DiscordMessageFile): Blob {
 		return file.data;
 	}
 
-	return new Blob([file.data], file.contentType ? { type: file.contentType } : undefined);
+	if (file.data instanceof ArrayBuffer) {
+		return new Blob(
+			[file.data],
+			file.contentType ? { type: file.contentType } : undefined,
+		);
+	}
+
+	const view = ArrayBuffer.isView(file.data)
+		? new Uint8Array(
+				file.data.buffer,
+				file.data.byteOffset,
+				file.data.byteLength,
+			)
+		: new Uint8Array(file.data);
+
+	return new Blob([view], file.contentType ? { type: file.contentType } : undefined);
 }
