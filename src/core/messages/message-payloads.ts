@@ -129,13 +129,7 @@ function toBlob(file: DiscordMessageFile): Blob {
 		);
 	}
 
-	const view = ArrayBuffer.isView(file.data)
-		? new Uint8Array(
-				file.data.buffer,
-				file.data.byteOffset,
-				file.data.byteLength,
-			)
-		: new Uint8Array(file.data);
+	const bytes = Uint8Array.from(file.data as ArrayLike<number>);
 
-	return new Blob([view], file.contentType ? { type: file.contentType } : undefined);
+	return new Blob([bytes.buffer], file.contentType ? { type: file.contentType } : undefined);
 }
