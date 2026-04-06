@@ -1,4 +1,8 @@
 import { setTimeout as sleep } from 'node:timers/promises';
+import type {
+  RESTPutAPIApplicationRoleConnectionMetadataJSONBody,
+  RESTPutAPIApplicationRoleConnectionMetadataResult,
+} from 'discord-api-types/v10';
 
 type FetchLike = typeof fetch;
 
@@ -41,7 +45,9 @@ export class DiscordRestClient {
 
       if (response.ok) {
         if (response.status === 204) return undefined as T;
-        return (await response.json()) as T;
+        const responseText = await response.text();
+        if (!responseText) return undefined as T;
+        return JSON.parse(responseText) as T;
       }
 
       if (response.status >= 500 && attempt < this.maxRetries) {
@@ -49,7 +55,10 @@ export class DiscordRestClient {
         continue;
       }
 
-      lastError = new Error(`[DiscordRestClient] ${init.method ?? 'GET'} ${path} failed: ${response.status}`);
+      const errorBody = await response.text();
+      lastError = new Error(
+        `[DiscordRestClient] ${init.method ?? 'GET'} ${path} failed: ${response.status}${errorBody ? ` ${errorBody}` : ''}`,
+      );
       break;
     }
     throw lastError instanceof Error ? lastError : new Error('[DiscordRestClient] unknown request failure');
@@ -65,6 +74,15 @@ export class DiscordRestClient {
   editOriginal(interactionToken: string, body: unknown): Promise<unknown> {
     return this.request(`/webhooks/${this.options.applicationId}/${interactionToken}/messages/@original`, {
       method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  }
+
+  putApplicationRoleConnectionMetadata(
+    body: RESTPutAPIApplicationRoleConnectionMetadataJSONBody,
+  ): Promise<RESTPutAPIApplicationRoleConnectionMetadataResult> {
+    return this.request(`/applications/${this.options.applicationId}/role-connections/metadata`, {
+      method: 'PUT',
       body: JSON.stringify(body),
     });
   }

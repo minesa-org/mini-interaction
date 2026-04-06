@@ -85,6 +85,15 @@ export type {
 	DiscordUser,
 } from "./oauth/DiscordOAuth.js";
 export { OAuthTokenStorage } from "./oauth/OAuthTokenStorage.js";
+export { MiniInteraction } from "./clients/MiniInteraction.js";
+export type { MiniInteractionOptions } from "./clients/MiniInteraction.js";
+export type {
+	DiscordLocale,
+	LocalizationMap,
+	RegisterMetadataResult,
+	RoleConnectionMetadata,
+	RoleConnectionMetadataInput,
+} from "./types/RoleConnectionMetadata.js";
 
 
 // New v10 core modules
