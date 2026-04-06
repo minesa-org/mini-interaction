@@ -235,6 +235,66 @@ export interface MentionableSelectInteraction
 export const MentionableSelectInteraction = {};
 
 /**
+ * Radio interaction with helper methods.
+ */
+export interface RadioInteraction
+	extends Omit<APIMessageComponentInteraction, "data"> {
+	data: APIMessageStringSelectInteractionData;
+	values: string[];
+	getStringValues: () => string[];
+	getResponse: () => APIInteractionResponse | null;
+	reply: (
+		data: InteractionMessageData,
+	) => Promise<APIInteractionResponseChannelMessageWithSource>;
+	deferReply: (
+		options?: DeferReplyOptions,
+	) => APIInteractionResponseDeferredChannelMessageWithSource;
+	update: (
+		data?: InteractionMessageData,
+	) => Promise<APIInteractionResponseUpdateMessage>;
+	deferUpdate: () => APIInteractionResponseDeferredMessageUpdate;
+	showModal: (
+		data:
+			| APIModalInteractionResponseCallbackData
+			| { toJSON(): APIModalInteractionResponseCallbackData },
+	) => APIModalInteractionResponse;
+	canRespond?: (interactionId: string) => boolean;
+	trackResponse?: (interactionId: string, token: string, state: 'responded' | 'deferred') => void;
+}
+
+export const RadioInteraction = {};
+
+/**
+ * Checkbox interaction with helper methods.
+ */
+export interface CheckboxInteraction
+	extends Omit<APIMessageComponentInteraction, "data"> {
+	data: APIMessageStringSelectInteractionData;
+	values: string[];
+	getStringValues: () => string[];
+	getResponse: () => APIInteractionResponse | null;
+	reply: (
+		data: InteractionMessageData,
+	) => Promise<APIInteractionResponseChannelMessageWithSource>;
+	deferReply: (
+		options?: DeferReplyOptions,
+	) => APIInteractionResponseDeferredChannelMessageWithSource;
+	update: (
+		data?: InteractionMessageData,
+	) => Promise<APIInteractionResponseUpdateMessage>;
+	deferUpdate: () => APIInteractionResponseDeferredMessageUpdate;
+	showModal: (
+		data:
+			| APIModalInteractionResponseCallbackData
+			| { toJSON(): APIModalInteractionResponseCallbackData },
+	) => APIModalInteractionResponse;
+	canRespond?: (interactionId: string) => boolean;
+	trackResponse?: (interactionId: string, token: string, state: 'responded' | 'deferred') => void;
+}
+
+export const CheckboxInteraction = {};
+
+/**
  * Represents a component interaction augmented with helper response methods.
  *
  * Note: The `values` property is available on select menu interactions (data.values).

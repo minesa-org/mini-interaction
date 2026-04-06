@@ -62,6 +62,13 @@ export class MiniDatabase {
                 this.schema = schema;
         }
 
+	private sanitiseStoredData(
+		data: Record<string, unknown>,
+	): Record<string, unknown> {
+		const { _id, createdAt, updatedAt, ...rest } = data;
+		return rest;
+	}
+
 	/**
 	 * Initializes the database connection.
 	 */
@@ -167,12 +174,13 @@ export class MiniDatabase {
                         const dataWithDefaults = this.schema
                                 ? this.schema.applyDefaults(data)
                                 : data;
+                        const sanitizedData = this.sanitiseStoredData(dataWithDefaults);
 
                         await collection.updateOne(
                                 { _id: key },
                                 {
                                         $set: {
-                                                ...dataWithDefaults,
+                                                ...sanitizedData,
                                                 _id: key,
                                                 updatedAt: new Date(),
                                         },
@@ -224,12 +232,13 @@ export class MiniDatabase {
                         const dataWithDefaults = this.schema
                                 ? this.schema.applyDefaults(merged)
                                 : merged;
+                        const sanitizedData = this.sanitiseStoredData(dataWithDefaults);
 
                         await collection.updateOne(
                                 { _id: key },
                                 {
                                         $set: {
-                                                ...dataWithDefaults,
+                                                ...sanitizedData,
                                                 updatedAt: new Date(),
                                         },
                                         $setOnInsert: {

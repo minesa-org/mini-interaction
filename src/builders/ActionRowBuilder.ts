@@ -3,7 +3,7 @@ import type { APIActionRowComponent } from "discord-api-types/v10";
 
 import { resolveJSONEncodable } from "./shared.js";
 import type { JSONEncodable } from "./shared.js";
-import type { ActionRowComponent } from "../types/ComponentTypes.js";
+import type { ActionRowComponent, MiniActionRow } from "../types/ComponentTypes.js";
 
 /** Values accepted when composing component action rows. */
 export type ActionRowComponentLike<T extends ActionRowComponent> =
@@ -12,11 +12,11 @@ export type ActionRowComponentLike<T extends ActionRowComponent> =
 
 /** Builder for creating Action Row components. */
 export class ActionRowBuilder<T extends ActionRowComponent>
-	implements JSONEncodable<APIActionRowComponent<T>>
+	implements JSONEncodable<MiniActionRow<T>>
 {
 	private components: T[] = [];
 
-	constructor(data: Partial<APIActionRowComponent<T>> = {}) {
+	constructor(data: Partial<MiniActionRow<T>> = {}) {
 		this.components = [...(data.components ?? [])];
 	}
 
@@ -46,7 +46,7 @@ export class ActionRowBuilder<T extends ActionRowComponent>
 		return this;
 	}
 
-	public toJSON(): APIActionRowComponent<T> {
+	public toJSON(): MiniActionRow<T> {
 		return {
 			type: ComponentType.ActionRow,
 			components: [...this.components],

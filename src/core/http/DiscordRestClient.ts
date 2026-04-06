@@ -1,8 +1,20 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import type {
+  APIChannel,
+  APIMessage,
   RESTPutAPIApplicationRoleConnectionMetadataJSONBody,
   RESTPutAPIApplicationRoleConnectionMetadataResult,
 } from 'discord-api-types/v10';
+
+import { DiscordSentMessage } from '../messages/DiscordSentMessage.js';
+import {
+  createMessageRequestInit,
+  type BaseDiscordMessageOptions,
+  type DiscordReaction,
+  type DiscordSendMessageOptions,
+  type DiscordStartThreadOptions,
+} from '../messages/message-payloads.js';
+import { DiscordWebhook } from '../webhooks/DiscordWebhook.js';
 
 type FetchLike = typeof fetch;
 
@@ -25,22 +37,43 @@ export class DiscordRestClient {
     this.maxRetries = options.maxRetries ?? 3;
   }
 
-  async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  async request<T>(
+    path: string,
+    init: RequestInit & { authenticated?: boolean } = {},
+  ): Promise<T> {
     let lastError: unknown;
+    const { authenticated = true, ...requestInit } = init;
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
-      const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
-        ...init,
-        headers: {
-          Authorization: `Bot ${this.options.token}`,
-          'Content-Type': 'application/json',
-          ...(init.headers ?? {}),
-        },
-      });
+      let response: Response;
+      try {
+        response = await this.fetchImpl(`${this.baseUrl}${path}`, {
+          ...requestInit,
+          headers: {
+            ...(authenticated ? { Authorization: `Bot ${this.options.token}` } : {}),
+            ...getDefaultContentTypeHeader(requestInit.body),
+            ...(requestInit.headers ?? {}),
+          },
+        });
+      } catch (error) {
+        lastError = this.createRequestError(path, requestInit.method, error);
+        if (attempt < this.maxRetries) {
+          await sleep(150 * (attempt + 1));
+          continue;
+        }
+        break;
+      }
 
       if (response.status === 429) {
-        const retryAfter = Number(response.headers.get('retry-after') ?? '1');
-        await sleep(Math.ceil(retryAfter * 1000));
-        continue;
+        if (attempt < this.maxRetries) {
+          const retryAfter = Number(response.headers.get('retry-after') ?? '1');
+          await sleep(Math.ceil(retryAfter * 1000));
+          continue;
+        }
+
+        lastError = new Error(
+          `[DiscordRestClient] ${requestInit.method ?? 'GET'} ${path} failed: 429`,
+        );
+        break;
       }
 
       if (response.ok) {
@@ -57,17 +90,28 @@ export class DiscordRestClient {
 
       const errorBody = await response.text();
       lastError = new Error(
-        `[DiscordRestClient] ${init.method ?? 'GET'} ${path} failed: ${response.status}${errorBody ? ` ${errorBody}` : ''}`,
+        `[DiscordRestClient] ${requestInit.method ?? 'GET'} ${path} failed: ${response.status}${errorBody ? ` ${errorBody}` : ''}`,
       );
       break;
     }
     throw lastError instanceof Error ? lastError : new Error('[DiscordRestClient] unknown request failure');
   }
 
+  private createRequestError(path: string, method: string | undefined, error: unknown): Error {
+    const message =
+      error instanceof Error ? error.message : String(error);
+
+    return new Error(
+      `[DiscordRestClient] ${method ?? 'GET'} ${path} failed: ${message}`,
+      { cause: error instanceof Error ? error : undefined },
+    );
+  }
+
   createFollowup(interactionToken: string, body: unknown): Promise<unknown> {
     return this.request(`/webhooks/${this.options.applicationId}/${interactionToken}`, {
       method: 'POST',
       body: JSON.stringify(body),
+      authenticated: false,
     });
   }
 
@@ -75,7 +119,88 @@ export class DiscordRestClient {
     return this.request(`/webhooks/${this.options.applicationId}/${interactionToken}/messages/@original`, {
       method: 'PATCH',
       body: JSON.stringify(body),
+      authenticated: false,
     });
+  }
+
+  async createFollowupMessage(
+    interactionToken: string,
+    options: BaseDiscordMessageOptions,
+  ): Promise<DiscordSentMessage> {
+    const requestInit = createMessageRequestInit(options);
+    const message = await this.request<APIMessage>(
+      `/webhooks/${this.options.applicationId}/${interactionToken}`,
+      {
+        method: 'POST',
+        ...requestInit,
+        authenticated: false,
+      },
+    );
+
+    return new DiscordSentMessage(this, message);
+  }
+
+  async editOriginalMessage(
+    interactionToken: string,
+    options: BaseDiscordMessageOptions,
+  ): Promise<DiscordSentMessage> {
+    const requestInit = createMessageRequestInit(options);
+    const message = await this.request<APIMessage>(
+      `/webhooks/${this.options.applicationId}/${interactionToken}/messages/@original`,
+      {
+        method: 'PATCH',
+        ...requestInit,
+        authenticated: false,
+      },
+    );
+
+    return new DiscordSentMessage(this, message);
+  }
+
+  async sendMessage(options: DiscordSendMessageOptions): Promise<DiscordSentMessage> {
+    const { channelId, ...messageOptions } = options;
+    const requestInit = createMessageRequestInit(messageOptions);
+    const message = await this.request<APIMessage>(`/channels/${channelId}/messages`, {
+      method: 'POST',
+      ...requestInit,
+    });
+
+    return new DiscordSentMessage(this, message);
+  }
+
+  send(options: DiscordSendMessageOptions): Promise<DiscordSentMessage> {
+    return this.sendMessage(options);
+  }
+
+  async startThread(options: DiscordStartThreadOptions): Promise<APIChannel> {
+    const { channelId, messageId, reason, ...body } = options;
+
+    return this.request<APIChannel>(`/channels/${channelId}/messages/${messageId}/threads`, {
+      method: 'POST',
+      body: JSON.stringify({
+        auto_archive_duration: body.autoArchiveDuration,
+        rate_limit_per_user: body.rateLimitPerUser,
+        name: body.name,
+      }),
+      headers: reason ? { 'X-Audit-Log-Reason': reason } : undefined,
+    });
+  }
+
+  addReaction(
+    channelId: string,
+    messageId: string,
+    reaction: DiscordReaction,
+  ): Promise<void> {
+    return this.request<void>(
+      `/channels/${channelId}/messages/${messageId}/reactions/${encodeDiscordReaction(reaction)}/@me`,
+      {
+        method: 'PUT',
+      },
+    );
+  }
+
+  webhook(id: string, token: string): DiscordWebhook {
+    return new DiscordWebhook(this, id, token);
   }
 
   putApplicationRoleConnectionMetadata(
@@ -86,4 +211,28 @@ export class DiscordRestClient {
       body: JSON.stringify(body),
     });
   }
+}
+
+function getDefaultContentTypeHeader(body: RequestInit['body']): HeadersInit {
+  return body instanceof FormData ? {} : { 'Content-Type': 'application/json' };
+}
+
+function encodeDiscordReaction(reaction: DiscordReaction): string {
+  if (typeof reaction !== 'string') {
+    return encodeURIComponent(reaction.id ? `${reaction.name}:${reaction.id}` : reaction.name);
+  }
+
+  const trimmed = reaction.trim();
+
+  const customEmojiMatch = trimmed.match(/^<a?:([^:>]+):(\d+)>$/);
+  if (customEmojiMatch) {
+    const [, name, id] = customEmojiMatch;
+    return encodeURIComponent(`${name}:${id}`);
+  }
+
+  if (/^[^:\s]+:\d+$/.test(trimmed)) {
+    return encodeURIComponent(trimmed);
+  }
+
+  return encodeURIComponent(trimmed);
 }

@@ -16,6 +16,7 @@ import {
 } from "discord-api-types/v10";
 
 import { InteractionFlags } from "../types/InteractionFlags.js";
+import type { MessageMiniActionRow } from "../types/ComponentTypes.js";
 
 const COMPONENTS_V2_TYPES = new Set<number>([
 	ComponentType.Container,
@@ -27,6 +28,8 @@ const COMPONENTS_V2_TYPES = new Set<number>([
 	ComponentType.Thumbnail,
 	18, // Label
 	19, // FileUpload
+	2001, // Radio
+	2002, // Checkbox
 ]);
 
 /** Union of helper flag enums and raw Discord message flags. */
@@ -34,7 +37,7 @@ export type MessageFlagLike = MessageFlags | InteractionFlags;
 
 /** Top-level components allowed in messages (ActionRows or Containers) */
 export type TopLevelComponent =
-	| APIActionRowComponent<APIComponentInMessageActionRow>
+	| MessageMiniActionRow
 	| APIContainerComponent;
 
 /** Message payload accepted by helper reply/edit functions. */

@@ -11,6 +11,17 @@ import type {
         MessageContextMenuInteraction,
         AppCommandInteraction,
 } from "../utils/ContextMenuInteraction.js";
+import type {
+    ButtonInteraction,
+    StringSelectInteraction,
+    RoleSelectInteraction,
+    UserSelectInteraction,
+    ChannelSelectInteraction,
+    MentionableSelectInteraction,
+    RadioInteraction,
+    CheckboxInteraction
+} from "../utils/MessageComponentInteraction.js";
+import type { ModalSubmitInteraction } from "../utils/ModalSubmitInteraction.js";
 import type { JSONEncodable } from "../builders/shared.js";
 
 import type { CommandBuilder } from "../commands/CommandBuilder.js";
@@ -63,6 +74,29 @@ export type InteractionCommand = {
                         | RESTPostAPIPrimaryEntryPointApplicationCommandJSONBody
                   >;
         handler: CommandHandler;
+};
+
+/** Handler for any message component interaction */
+export type ComponentInteraction =
+    | ButtonInteraction
+    | StringSelectInteraction
+    | RoleSelectInteraction
+    | UserSelectInteraction
+    | ChannelSelectInteraction
+    | MentionableSelectInteraction
+    | RadioInteraction
+    | CheckboxInteraction;
+
+/** Structure for a standalone component handler */
+export type InteractionComponent = {
+    customId: string;
+    handler: (interaction: ComponentInteraction) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
+};
+
+/** Structure for a standalone modal handler */
+export type InteractionModal = {
+    customId: string;
+    handler: (interaction: ModalSubmitInteraction) => Promise<APIInteractionResponse | void> | APIInteractionResponse | void;
 };
 
 /** Map of command names to their registered MiniInteraction command definitions. */

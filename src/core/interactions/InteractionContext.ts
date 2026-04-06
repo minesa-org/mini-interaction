@@ -5,6 +5,11 @@ import type {
 } from 'discord-api-types/v10';
 import type { ParsedInteraction } from '../../types/discord.js';
 import { DiscordRestClient } from '../http/DiscordRestClient.js';
+import type { DiscordSentMessage } from '../messages/DiscordSentMessage.js';
+import type {
+  BaseDiscordMessageOptions,
+  DiscordSendMessageOptions,
+} from '../messages/message-payloads.js';
 
 export type InteractionContextOptions = {
   interaction: ParsedInteraction;
@@ -46,12 +51,16 @@ export class InteractionContext {
     return { type: 9, data };
   }
 
-  editReply(body: unknown): Promise<unknown> {
-    return this.options.rest.editOriginal(this.options.interaction.token, body);
+  editReply(body: BaseDiscordMessageOptions): Promise<DiscordSentMessage> {
+    return this.options.rest.editOriginalMessage(this.options.interaction.token, body);
   }
 
-  followUp(body: unknown): Promise<unknown> {
-    return this.options.rest.createFollowup(this.options.interaction.token, body);
+  followUp(body: BaseDiscordMessageOptions): Promise<DiscordSentMessage> {
+    return this.options.rest.createFollowupMessage(this.options.interaction.token, body);
+  }
+
+  send(body: DiscordSendMessageOptions): Promise<DiscordSentMessage> {
+    return this.options.rest.sendMessage(body);
   }
 
   get hasResponded(): boolean {

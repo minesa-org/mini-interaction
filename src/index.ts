@@ -40,6 +40,9 @@ export type {
         MessageCommandHandler,
         AppCommandHandler,
         CommandHandler,
+        ComponentInteraction,
+        InteractionComponent,
+        InteractionModal,
 } from "./types/Commands.js";
 export {
 	MessageComponentInteraction,
@@ -49,6 +52,8 @@ export {
 	UserSelectInteraction,
 	ChannelSelectInteraction,
 	MentionableSelectInteraction,
+        RadioInteraction,
+        CheckboxInteraction,
 	ResolvedUserOption as ComponentResolvedUserOption,
 	ResolvedMentionableOption as ComponentResolvedMentionableOption,
 } from "./utils/MessageComponentInteraction.js";
@@ -60,11 +65,13 @@ export {
 } from "./types/InteractionFlags.js";
 export { ButtonStyle } from "./types/ButtonStyle.js";
 export { SeparatorSpacingSize } from "./types/SeparatorSpacingSize.js";
+export { MessageFlags, type APIAllowedMentions } from "discord-api-types/v10";
 export { TextInputStyle } from "discord-api-types/v10";
 export { MiniPermFlags } from "./types/PermissionFlags.js";
 export type {
 	ActionRowComponent,
 	MessageActionRowComponent,
+        InteractionComponentData,
 } from "./types/ComponentTypes.js";
 export * from "./builders/index.js";
 export { MiniDataBuilder } from "./database/MiniDataBuilder.js";
@@ -85,8 +92,6 @@ export type {
 	DiscordUser,
 } from "./oauth/DiscordOAuth.js";
 export { OAuthTokenStorage } from "./oauth/OAuthTokenStorage.js";
-export { MiniInteraction } from "./clients/MiniInteraction.js";
-export type { MiniInteractionOptions } from "./clients/MiniInteraction.js";
 export type {
 	DiscordLocale,
 	LocalizationMap,
@@ -99,10 +104,26 @@ export type {
 // New v10 core modules
 export { DiscordRestClient } from "./core/http/DiscordRestClient.js";
 export type { DiscordRestClientOptions } from "./core/http/DiscordRestClient.js";
+export { DiscordSentMessage } from "./core/messages/DiscordSentMessage.js";
+export type {
+	DiscordMessageFile,
+	DiscordReaction,
+	DiscordSendMessageOptions,
+	DiscordStartThreadOptions,
+	DiscordWebhookSendOptions,
+} from "./core/messages/message-payloads.js";
+export { DiscordWebhook } from "./core/webhooks/DiscordWebhook.js";
 export { InteractionContext } from "./core/interactions/InteractionContext.js";
 export type { InteractionContextOptions } from "./core/interactions/InteractionContext.js";
 export { verifyAndParseInteraction } from "./core/interactions/InteractionVerifier.js";
 export { InteractionRouter } from "./router/InteractionRouter.js";
+export {
+	MiniInteraction,
+	LegacyMiniInteractionAdapter,
+} from "./compat/MiniInteraction.js";
+export type { MiniInteractionOptions } from "./compat/MiniInteraction.js";
 export type { APIRadioComponent, APIRadioOption } from "./types/radio.js";
 export { RADIO_COMPONENT_TYPE } from "./types/radio.js";
+export type { APICheckboxComponent, APICheckboxOption } from "./types/checkbox.js";
+export { CHECKBOX_COMPONENT_TYPE } from "./types/checkbox.js";
 export { ValidationError } from "./types/validation.js";

@@ -34,6 +34,31 @@ test('editReply and followUp call webhook endpoints', async () => {
   assert.match(calls[0], /messages\/\@original/);
 });
 
+test('editReply retries transient transport failures', async () => {
+  let attempts = 0;
+  const fetchImpl: typeof fetch = (async () => {
+    attempts += 1;
+    if (attempts === 1) {
+      throw new TypeError('fetch failed', {
+        cause: { code: 'UND_ERR_SOCKET' },
+      } as ErrorOptions);
+    }
+
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  }) as typeof fetch;
+
+  const rest = new DiscordRestClient({
+    token: 'x',
+    applicationId: 'app',
+    fetchImplementation: fetchImpl,
+    maxRetries: 1,
+  });
+  const ctx = new InteractionContext({ interaction, rest });
+
+  await ctx.editReply({ content: 'edit' });
+  assert.equal(attempts, 2);
+});
+
 test('auto-ack diagnostics callback fires for slow handler', async () => {
   let message = '';
   const { rest } = createRest();
