@@ -139,6 +139,53 @@ try {
 
 ---
 
+## 🔗 Linked Role Metadata
+
+Register application role connection metadata with `mini.registerMetadata(...)`.
+
+```ts
+import {
+  MiniInteraction,
+  RoleConnectionMetadataTypes,
+} from '@minesa-org/mini-interaction';
+
+const mini = new MiniInteraction({
+  applicationId: process.env.DISCORD_APPLICATION_ID,
+});
+
+await mini.registerMetadata(process.env.DISCORD_BOT_TOKEN!, [
+  {
+    key: 'is_miniapp',
+    name: 'Is Mini App?',
+    description: 'Is the user an assistant?',
+    type: RoleConnectionMetadataTypes.BooleanEqual,
+  },
+]);
+```
+
+Localization maps use `locale -> string` objects for `name_localizations` and `description_localizations`.
+
+```ts
+await mini.registerMetadata(process.env.DISCORD_BOT_TOKEN!, [
+  {
+    key: 'is_miniapp',
+    name: 'Is Mini App?',
+    description: 'Is the user an assistant?',
+    type: RoleConnectionMetadataTypes.BooleanEqual,
+    name_localizations: {
+      tr: 'Mini Uygulama mi?',
+      de: 'Ist Mini-App?',
+    },
+    description_localizations: {
+      tr: 'Kullanici bir assistant mi?',
+      de: 'Benutzer ist ein Assistent?',
+    },
+  },
+]);
+```
+
+---
+
 ## 📜 License
 
 MIT © [Minesa](https://github.com/minesa-org)

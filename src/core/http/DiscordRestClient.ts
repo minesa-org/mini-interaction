@@ -1,5 +1,10 @@
 import { setTimeout as sleep } from 'node:timers/promises';
-import type { APIChannel, APIMessage } from 'discord-api-types/v10';
+import type {
+  APIChannel,
+  APIMessage,
+  RESTPutAPIApplicationRoleConnectionMetadataJSONBody,
+  RESTPutAPIApplicationRoleConnectionMetadataResult,
+} from 'discord-api-types/v10';
 
 import { DiscordSentMessage } from '../messages/DiscordSentMessage.js';
 import {
@@ -73,7 +78,9 @@ export class DiscordRestClient {
 
       if (response.ok) {
         if (response.status === 204) return undefined as T;
-        return (await response.json()) as T;
+        const responseText = await response.text();
+        if (!responseText) return undefined as T;
+        return JSON.parse(responseText) as T;
       }
 
       if (response.status >= 500 && attempt < this.maxRetries) {
@@ -81,7 +88,10 @@ export class DiscordRestClient {
         continue;
       }
 
-      lastError = new Error(`[DiscordRestClient] ${requestInit.method ?? 'GET'} ${path} failed: ${response.status}`);
+      const errorBody = await response.text();
+      lastError = new Error(
+        `[DiscordRestClient] ${requestInit.method ?? 'GET'} ${path} failed: ${response.status}${errorBody ? ` ${errorBody}` : ''}`,
+      );
       break;
     }
     throw lastError instanceof Error ? lastError : new Error('[DiscordRestClient] unknown request failure');
@@ -191,6 +201,15 @@ export class DiscordRestClient {
 
   webhook(id: string, token: string): DiscordWebhook {
     return new DiscordWebhook(this, id, token);
+  }
+
+  putApplicationRoleConnectionMetadata(
+    body: RESTPutAPIApplicationRoleConnectionMetadataJSONBody,
+  ): Promise<RESTPutAPIApplicationRoleConnectionMetadataResult> {
+    return this.request(`/applications/${this.options.applicationId}/role-connections/metadata`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
   }
 }
 
