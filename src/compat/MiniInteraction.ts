@@ -42,6 +42,14 @@ import {
 	type DiscordUser,
 	type OAuthTokens,
 } from "../oauth/DiscordOAuth.js";
+import type {
+	RegisterMetadataResult,
+	RoleConnectionMetadataInput,
+} from "../types/RoleConnectionMetadata.js";
+import type {
+	ApplicationRoleConnectionMetadataType,
+	RESTPutAPIApplicationRoleConnectionMetadataJSONBody,
+} from "discord-api-types/v10";
 
 type TimeoutConfig = {
 	initialResponseTimeout?: number;
@@ -225,6 +233,29 @@ export class MiniInteraction {
 				}
 			}
 		};
+	}
+
+	async registerMetadata(
+		botToken: string,
+		metadata: RoleConnectionMetadataInput[],
+	): Promise<RegisterMetadataResult> {
+		if (!botToken) {
+			throw new Error("[MiniInteraction] botToken is required");
+		}
+
+		if (!Array.isArray(metadata) || metadata.length === 0) {
+			throw new Error(
+				"[MiniInteraction] metadata must be a non-empty array payload",
+			);
+		}
+
+		const payload: RESTPutAPIApplicationRoleConnectionMetadataJSONBody =
+			metadata.map((field) => ({
+				...field,
+				type: field.type as unknown as ApplicationRoleConnectionMetadataType,
+			}));
+
+		return this.rest.putApplicationRoleConnectionMetadata(payload);
 	}
 
 	async registerCommands(tokenOverride?: string): Promise<unknown> {
